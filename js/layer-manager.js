@@ -462,37 +462,13 @@ function resetLayer() {
     const layer = layers[activeLayerIndex];
     if (!layer.image) return;
 
-    const img = layer.image;
-    const id = layer.id;
-    const name = layer.name;
-    layers[activeLayerIndex] = {
-        id,
-        name,
-        image: img,
-        x: 200,
-        y: 150,
-        scale: 1,
-        rotation: 0,
-        opacity: 1,
-        blendMode: 'source-over',
-        flipX: false,
-        orientation: 'auto',
-        visible: true,
-        locked: false,
-        brightness: 0,
-        contrast: 0,
-        saturation: 0,
-        temperature: 0,
-        hue: 0,
-        blur: 0,
-        sharpness: 0,
-        vignette: 0,
-        hdr: 0,
-        grain: 0,
-        colorMask: null,
-        channelMixer: null,
-        levels: null
-    };
+    const { id, name, image } = layer;
+    const resetted = createNewLayer();
+    nextLayerId--; // undo ID increment — we're resetting, not creating a new layer
+    resetted.id = id;
+    resetted.name = name;
+    resetted.image = image;
+    layers[activeLayerIndex] = resetted;
 
     updateControls();
     render();

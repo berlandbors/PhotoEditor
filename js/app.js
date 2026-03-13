@@ -24,9 +24,10 @@ let nextLayerId = 1;
 const MAX_LAYERS = 5;
 
 function createNewLayer() {
+    const id = nextLayerId++;
     return {
-        id: nextLayerId++,
-        name: `Слой ${nextLayerId - 1}`,
+        id,
+        name: `Слой ${id}`,
         image: null,
         x: 200,
         y: 150,

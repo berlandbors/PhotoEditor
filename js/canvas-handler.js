@@ -254,6 +254,9 @@ function hslToRgb(h, s, l) {
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Track whether any content has been drawn (needed for canvas blending)
+    let canvasHasContent = false;
+
     // Отрисовываем слои в порядке от последнего к первому (снизу вверх)
     for (let i = layers.length - 1; i >= 0; i--) {
         const layer = layers[i];
@@ -261,9 +264,9 @@ function render() {
         // Пропускаем невидимые слои или слои без изображения
         if (!layer.visible || !layer.image) continue;
 
-        // Если слой использует попиксельное смешивание, применяем его с предыдущим результатом
-        if (layer.blendMode.startsWith('canvas-') && i < layers.length - 1) {
-            // Создаём временный canvas с текущим состоянием
+        // Если слой использует попиксельное смешивание и есть что смешивать —
+        // применяем попиксельный алгоритм поверх текущего состояния canvas
+        if (layer.blendMode.startsWith('canvas-') && canvasHasContent) {
             const currentState = document.createElement('canvas');
             currentState.width = canvas.width;
             currentState.height = canvas.height;
@@ -272,6 +275,8 @@ function render() {
         } else {
             drawLayer(layer);
         }
+
+        canvasHasContent = true;
     }
 
     updateCanvasOverlay();
