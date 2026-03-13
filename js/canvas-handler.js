@@ -83,7 +83,18 @@ function applyFiltersToImage(layer, imageOverride) {
     // Получаем данные изображения
     let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
     let data = imageData.data;
-    
+
+    // Применяем цветовую маску перед остальными фильтрами
+    if (layer.colorMask) {
+        imageData = applyColorMask(
+            imageData,
+            layer.colorMask.range,
+            layer.colorMask.adjustments,
+            layer.colorMask.tolerance
+        );
+        data = imageData.data;
+    }
+
     // Применяем фильтры
     for (let i = 0; i < data.length; i += 4) {
         let r = data[i];

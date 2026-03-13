@@ -62,6 +62,7 @@
                     <button class="tab-btn active" onclick="switchTab('basic', this)">⚙️ Базовые</button>
                     <button class="tab-btn" onclick="switchTab('filters', this)">🎨 Фильтры</button>
                     <button class="tab-btn" onclick="switchTab('effects', this)">✨ Эффекты</button>
+                    <button class="tab-btn" onclick="switchTab('colormask', this)">🎭 Маски</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -283,6 +284,66 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ТАБ: Цветовые маски -->
+                <div class="tab-content" id="tab-colormask">
+                    <div class="upload-title">🎭 Цветовые маски слоя <span id="activeLayerNum4">1</span></div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Выберите цвет</span>
+                        </div>
+                        <div class="color-range-grid">
+                            <button class="color-range-btn" data-color="red" style="background: #c0392b;">🔴 Красные</button>
+                            <button class="color-range-btn" data-color="orange" style="background: #d35400;">🟠 Оранжевые</button>
+                            <button class="color-range-btn" data-color="yellow" style="background: #b7950b;">🟡 Жёлтые</button>
+                            <button class="color-range-btn" data-color="green" style="background: #1e8449;">🟢 Зелёные</button>
+                            <button class="color-range-btn" data-color="cyan" style="background: #148f77;">🩵 Голубые</button>
+                            <button class="color-range-btn" data-color="blue" style="background: #1a5276;">🔵 Синие</button>
+                            <button class="color-range-btn" data-color="magenta" style="background: #76448a;">🟣 Пурпурные</button>
+                            <button class="color-range-btn" data-color="pink" style="background: #943126;">🌸 Розовые</button>
+                        </div>
+                    </div>
+
+                    <div id="colorMaskControls" style="display: none;">
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>🎯 Допуск</span>
+                                <span class="param-value" id="toleranceVal">20</span>
+                            </div>
+                            <input type="range" id="tolerance" min="0" max="50" value="20" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>💡 Яркость маски</span>
+                                <span class="param-value" id="maskBrightnessVal">0</span>
+                            </div>
+                            <input type="range" id="maskBrightness" min="-50" max="50" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>🌈 Насыщенность маски</span>
+                                <span class="param-value" id="maskSaturationVal">0</span>
+                            </div>
+                            <input type="range" id="maskSaturation" min="-100" max="100" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>🎨 Сдвиг оттенка</span>
+                                <span class="param-value" id="maskHueVal">0</span>
+                            </div>
+                            <input type="range" id="maskHue" min="-180" max="180" value="0" step="1">
+                        </div>
+
+                        <div class="quick-actions">
+                            <button class="quick-btn" onclick="applyColorMaskToLayer()">✓ Применить</button>
+                            <button class="quick-btn" onclick="resetColorMask()">↺ Сбросить</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -383,6 +444,7 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/color-masks.js"></script>
     <script src="js/blending.js"></script>
     <script src="js/canvas-handler.js"></script>
     <script src="js/filter-presets.js"></script>

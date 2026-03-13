@@ -157,6 +157,31 @@ function toggleSidebar() {
     icon.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
 }
 
+function applyColorMaskToLayer() {
+    if (!selectedColorRange) return;
+
+    const layer = layers[activeLayer];
+    layer.colorMask = {
+        range: selectedColorRange,
+        tolerance: parseInt(document.getElementById('tolerance').value),
+        adjustments: {
+            brightness: parseInt(document.getElementById('maskBrightness').value),
+            saturation: parseInt(document.getElementById('maskSaturation').value),
+            hue: parseInt(document.getElementById('maskHue').value)
+        }
+    };
+
+    render();
+    showHint('Маска применена: ' + COLOR_RANGES[selectedColorRange].name);
+}
+
+function resetColorMask() {
+    layers[activeLayer].colorMask = null;
+    resetColorMaskUI();
+    render();
+    showHint('Маска сброшена');
+}
+
 // Регистрация всех обработчиков UI — вызывается из app.js после определения глобальных переменных
 function initUIControls() {
     // Зум canvas колёсиком мыши
@@ -371,5 +396,29 @@ function initUIControls() {
         layers[activeLayer].grain = parseFloat(document.getElementById('grain').value);
         updateValues();
         render();
+    });
+
+    // Кнопки выбора цветового диапазона
+    document.querySelectorAll('.color-range-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            selectedColorRange = btn.dataset.color;
+            document.querySelectorAll('.color-range-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById('colorMaskControls').style.display = 'block';
+        });
+    });
+
+    // Ползунки цветовой маски
+    initSlider('tolerance', function() {
+        document.getElementById('toleranceVal').textContent = document.getElementById('tolerance').value;
+    });
+    initSlider('maskBrightness', function() {
+        document.getElementById('maskBrightnessVal').textContent = document.getElementById('maskBrightness').value;
+    });
+    initSlider('maskSaturation', function() {
+        document.getElementById('maskSaturationVal').textContent = document.getElementById('maskSaturation').value;
+    });
+    initSlider('maskHue', function() {
+        document.getElementById('maskHueVal').textContent = document.getElementById('maskHue').value;
     });
 }
