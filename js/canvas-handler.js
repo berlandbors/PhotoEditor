@@ -251,8 +251,36 @@ function hslToRgb(h, s, l) {
 }
 
 // ===== РЕНДЕРИНГ С ФИЛЬТРАМИ =====
+
+// Кэш паттерна шахматной доски для визуализации прозрачности
+let checkerboardPattern = null;
+let checkerboardSize = { width: 0, height: 0 };
+
+function drawCheckerboard() {
+    const size = 20;
+    // Пересоздать паттерн при изменении размера холста
+    if (!checkerboardPattern || checkerboardSize.width !== canvas.width || checkerboardSize.height !== canvas.height) {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = size * 2;
+        offscreen.height = size * 2;
+        const offCtx = offscreen.getContext('2d');
+        offCtx.fillStyle = '#ffffff';
+        offCtx.fillRect(0, 0, size * 2, size * 2);
+        offCtx.fillStyle = '#cccccc';
+        offCtx.fillRect(0, 0, size, size);
+        offCtx.fillRect(size, size, size, size);
+        checkerboardPattern = ctx.createPattern(offscreen, 'repeat');
+        checkerboardSize = { width: canvas.width, height: canvas.height };
+    }
+    ctx.fillStyle = checkerboardPattern;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Нарисовать checkerboard для визуализации прозрачности
+    drawCheckerboard();
 
     // Track whether any content has been drawn (needed for canvas blending)
     let canvasHasContent = false;

@@ -83,6 +83,7 @@
                     <button class="tab-btn" onclick="switchTab('effects', this)">✨ Эффекты</button>
                     <button class="tab-btn" onclick="switchTab('colormask', this)">🎭 Маски</button>
                     <button class="tab-btn" onclick="switchTab('channels', this)">📺 Каналы</button>
+                    <button class="tab-btn" onclick="switchTab('background', this)">🎯 Фон</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -491,6 +492,120 @@
                         <button class="quick-btn" onclick="resetChannelMixer()">↺ Сбросить</button>
                     </div>
                 </div>
+
+                <!-- ТАБ: Удаление фона -->
+                <div class="tab-content" id="tab-background">
+                    <div class="upload-title">🎯 Удаление фона слоя <span id="activeLayerNum6">1</span></div>
+
+                    <!-- Автоудаление -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🤖 Режим удаления</span>
+                        </div>
+                        <select id="bgRemovalMode">
+                            <option value="auto">Авто (по цвету краёв)</option>
+                            <option value="color">По выбранному цвету</option>
+                        </select>
+                    </div>
+
+                    <div class="param-group" id="colorPickerGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>Цвет для удаления</span>
+                        </div>
+                        <input type="color" id="bgColor" value="#00ff00">
+                        <span class="hint-text">Зелёный для Chroma Key</span>
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎯 Допуск</span>
+                            <span class="param-value" id="bgToleranceVal">30</span>
+                        </div>
+                        <input type="range" id="bgTolerance" min="0" max="100" value="30">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌫️ Растушёвка краёв</span>
+                            <span class="param-value" id="bgFeatherVal">5</span>
+                        </div>
+                        <input type="range" id="bgFeather" min="0" max="20" value="5">
+                    </div>
+
+                    <button class="quick-btn primary" onclick="applyBackgroundRemoval()">✨ Удалить фон</button>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <!-- Удаление по каналам -->
+                    <div class="upload-title">🎨 Удаление цветовых каналов</div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Выберите канал</span>
+                        </div>
+                        <select id="channelToRemove">
+                            <option value="">— Не выбрано —</option>
+                            <option value="red">🔴 Красный</option>
+                            <option value="orange">🟠 Оранжевый</option>
+                            <option value="yellow">🟡 Жёлтый</option>
+                            <option value="green">🟢 Зелёный (Chroma Key)</option>
+                            <option value="cyan">🔵 Голубой</option>
+                            <option value="blue">🔵 Синий</option>
+                            <option value="magenta">🟣 Пурпурный</option>
+                            <option value="pink">🌸 Розовый</option>
+                        </select>
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Режим обработки</span>
+                        </div>
+                        <select id="channelMode">
+                            <option value="transparent">Прозрачность</option>
+                            <option value="replace">Заменить цветом</option>
+                            <option value="desaturate">Обесцветить</option>
+                        </select>
+                    </div>
+
+                    <div class="param-group" id="replacementGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>Цвет замены</span>
+                        </div>
+                        <input type="color" id="replacementColor" value="#ffffff">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎯 Допуск канала</span>
+                            <span class="param-value" id="channelToleranceVal">20</span>
+                        </div>
+                        <input type="range" id="channelTolerance" min="0" max="50" value="20">
+                    </div>
+
+                    <button class="quick-btn primary" onclick="applyChannelRemoval()">✓ Применить удаление</button>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <!-- Удаление по яркости -->
+                    <div class="upload-title">⚫⚪ Удаление по яркости</div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Порог яркости</span>
+                            <span class="param-value" id="luminanceThresholdVal">50</span>
+                        </div>
+                        <input type="range" id="luminanceThreshold" min="10" max="128" value="50">
+                    </div>
+
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="removeLuminance('shadows')">⚫ Удалить тени</button>
+                        <button class="quick-btn" onclick="removeLuminance('highlights')">⚪ Удалить блики</button>
+                    </div>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <button class="quick-btn danger" onclick="resetTransparency()">↺ Восстановить непрозрачность</button>
+                </div>
             </div>
         </aside>
 
@@ -588,6 +703,7 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/background-removal.js"></script>
     <script src="js/channel-mixer.js"></script>
     <script src="js/color-masks.js"></script>
     <script src="js/blending.js"></script>

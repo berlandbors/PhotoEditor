@@ -711,6 +711,36 @@ input[type="range"]::-moz-range-thumb {
     background: #3a3a3a;
 }
 
+.hint-text {
+    display: block;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.quick-btn.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
+    color: #fff;
+}
+
+.quick-btn.primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.quick-btn.danger {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    border-color: transparent;
+    color: #fff;
+}
+
+.quick-btn.danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+}
+
 /* Channel Mixer */
 .channel-section {
     margin-top: 16px;
