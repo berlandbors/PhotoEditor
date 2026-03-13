@@ -436,6 +436,53 @@ input[type="range"]::-moz-range-thumb {
     background: #3a3a3a;
 }
 
+/* Кнопки ориентации изображений */
+.orientation-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.orientation-btn {
+    padding: 10px 8px;
+    background: #2d2d2d;
+    border: 2px solid #444;
+    border-radius: 8px;
+    color: #ccc;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-weight: 600;
+    min-height: 40px;
+}
+
+.orientation-btn:hover {
+    background: #3a3a3a;
+    border-color: #0078d4;
+    transform: translateY(-2px);
+}
+
+.orientation-btn:active {
+    transform: scale(0.95);
+}
+
+.orientation-btn.active {
+    background: linear-gradient(135deg, #0078d4 0%, #00bcf2 100%);
+    border-color: #00bcf2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+}
+
+.orientation-btn.active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 120, 212, 0.4);
+}
+
 .workspace {
     flex: 1;
     display: flex;
