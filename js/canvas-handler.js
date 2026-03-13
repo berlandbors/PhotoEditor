@@ -422,3 +422,38 @@ function initCanvasHandlers() {
     canvas.addEventListener('touchend', endDrag);
     canvas.addEventListener('mouseleave', endDrag);
 }
+
+// ===== ОРИЕНТАЦИЯ ХОЛСТА =====
+
+function setCanvasOrientation(orientation) {
+    canvasOrientation = orientation;
+    document.querySelectorAll('.orientation-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.orientation === orientation);
+    });
+    updateCanvasSize();
+    render();
+}
+
+function updateCanvasSize() {
+    if (canvasOrientation === 'auto') {
+        const dims = calculateAutoCanvasSize();
+        canvas.width = dims.width;
+        canvas.height = dims.height;
+    } else {
+        const size = CANVAS_SIZES[canvasOrientation];
+        canvas.width = size.width;
+        canvas.height = size.height;
+    }
+}
+
+function calculateAutoCanvasSize() {
+    let maxW = 1400, maxH = 900;
+    [1, 2].forEach(n => {
+        const l = layers[n];
+        if (l.image) {
+            maxW = Math.max(maxW, l.x + l.image.width * l.scale + 100);
+            maxH = Math.max(maxH, l.y + l.image.height * l.scale + 100);
+        }
+    });
+    return { width: Math.min(maxW, 3000), height: Math.min(maxH, 3000) };
+}

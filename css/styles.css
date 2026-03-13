@@ -521,6 +521,12 @@ input[type="range"]::-moz-range-thumb {
     color: white;
 }
 
+.orientation-btn.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-color: #667eea;
+    color: white;
+}
+
 .spacer {
     flex: 1;
     min-width: 10px;
