@@ -1,129 +1,315 @@
-// Layer manager - uploading images, selecting/removing layers, updating controls
+// Layer manager - dynamic layer management, updating controls
 
-function initUpload(layerNum) {
-    const card = document.getElementById(`layer${layerNum}Card`);
-    const input = document.getElementById(`file${layerNum}`);
-    const preview = document.getElementById(`preview${layerNum}`);
+// ===== УПРАВЛЕНИЕ СЛОЯМИ =====
 
-    card.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('layer-control-btn')) {
-            input.click();
-        }
-    });
+/**
+ * Добавить новый слой
+ */
+function addNewLayer() {
+    if (layers.length >= MAX_LAYERS) {
+        showHint(`Максимум ${MAX_LAYERS} слоёв`);
+        return;
+    }
 
-    input.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    layers[layerNum].image = img;
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
-                    card.classList.add('has-image');
-                    card.querySelector('.upload-placeholder').style.display = 'none';
-                    
-                    selectLayer(layerNum);
-                    updateCanvasOverlay();
-                    render();
-                    showHint('Фото загружено');
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    const newLayer = createNewLayer();
+    layers.unshift(newLayer);
 
-    card.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        card.style.borderColor = '#0078d4';
-    });
+    const layerElement = createLayerElement(newLayer);
+    document.getElementById('layersList').prepend(layerElement);
 
-    card.addEventListener('dragleave', () => {
-        card.style.borderColor = '';
-    });
+    selectLayerByIndex(0);
 
-    card.addEventListener('drop', (e) => {
-        e.preventDefault();
-        card.style.borderColor = '';
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) {
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            input.files = dt.files;
-            input.dispatchEvent(new Event('change'));
-        }
-    });
+    updateLayerCount();
+    updateAddButton();
+
+    showHint(`Добавлен ${newLayer.name}`);
 }
 
-function selectLayer(num) {
-    if (!layers[num].image) return;
-    
-    activeLayer = num;
-    
-    document.querySelectorAll('.upload-card').forEach(card => {
-        card.classList.remove('active');
-    });
-    document.getElementById(`layer${num}Card`).classList.add('active');
-    
-    document.getElementById('activeLayerNum').textContent = num;
-    document.getElementById('activeLayerNum2').textContent = num;
-    document.getElementById('activeLayerNum3').textContent = num;
-    document.getElementById('activeLayerNum4').textContent = num;
-    document.getElementById('bottomLayerNum').textContent = num;
-    
-    updateControls();
-    updateBlendModeDisplay();
-}
+/**
+ * Удалить слой
+ */
+function deleteLayer(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layerIndex = layers.findIndex(l => l.id === layerId);
 
-function removeLayer(num) {
-    layers[num].image = null;
-    const card = document.getElementById(`layer${num}Card`);
-    const preview = document.getElementById(`preview${num}`);
-    const input = document.getElementById(`file${num}`);
-    
-    card.classList.remove('has-image', 'active');
-    preview.style.display = 'none';
-    card.querySelector('.upload-placeholder').style.display = 'block';
-    input.value = '';
-    
-    layers[num] = { 
-        image: null, 
-        x: num === 1 ? 200 : 400, 
-        y: num === 1 ? 150 : 250, 
-        scale: 1, 
-        rotation: 0, 
-        opacity: 1, 
-        blendMode: 'source-over', 
-        flipX: false,
-        orientation: 'auto',
-        brightness: 0,
-        contrast: 0,
-        saturation: 0,
-        temperature: 0,
-        hue: 0,
-        blur: 0,
-        sharpness: 0,
-        vignette: 0,
-        hdr: 0,
-        grain: 0,
-        colorMask: null,
-        channelMixer: null,
-        levels: null
-    };
-    
-    // Сбросить кнопки ориентации для этого слоя
-    document.querySelectorAll(`.orientation-btn[data-layer="${num}"]`).forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.orientation === 'auto');
-    });
-    const valElement = document.getElementById(`orientation${num}Val`);
-    if (valElement) valElement.textContent = ORIENTATION_LABELS['auto'];
+    if (layerIndex === -1) return;
 
-    updateCanvasOverlay();
+    if (layers[layerIndex].image) {
+        if (!confirm(`Удалить ${layers[layerIndex].name}?`)) return;
+    }
+
+    const deletedLayer = layers.splice(layerIndex, 1)[0];
+    layerItem.remove();
+
+    if (layers.length > 0) {
+        const newIndex = Math.min(layerIndex, layers.length - 1);
+        selectLayerByIndex(newIndex);
+    } else {
+        activeLayerIndex = -1;
+        updateControls();
+    }
+
+    updateLayerCount();
+    updateAddButton();
     render();
-    showHint('Удалено');
+
+    showHint(`Удалён ${deletedLayer.name}`);
 }
+
+/**
+ * Дублировать слой
+ */
+function duplicateLayer(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layerIndex = layers.findIndex(l => l.id === layerId);
+
+    if (layerIndex === -1 || layers.length >= MAX_LAYERS) return;
+
+    const originalLayer = layers[layerIndex];
+    const duplicatedLayer = JSON.parse(JSON.stringify(originalLayer));
+    duplicatedLayer.id = nextLayerId++;
+    duplicatedLayer.name = `${originalLayer.name} (копия)`;
+    duplicatedLayer.image = originalLayer.image;
+
+    layers.splice(layerIndex, 0, duplicatedLayer);
+
+    const layerElement = createLayerElement(duplicatedLayer);
+    layerItem.before(layerElement);
+
+    selectLayerByIndex(layerIndex);
+    updateLayerCount();
+    updateAddButton();
+    render();
+
+    showHint(`Дублирован ${originalLayer.name}`);
+}
+
+/**
+ * Переместить слой вверх (выше в списке = ниже по индексу в массиве)
+ */
+function moveLayerUp(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layerIndex = layers.findIndex(l => l.id === layerId);
+
+    if (layerIndex <= 0) return;
+
+    [layers[layerIndex], layers[layerIndex - 1]] = [layers[layerIndex - 1], layers[layerIndex]];
+
+    const prevItem = layerItem.previousElementSibling;
+    if (prevItem) {
+        layerItem.parentNode.insertBefore(layerItem, prevItem);
+    }
+
+    if (activeLayerIndex === layerIndex) {
+        activeLayerIndex = layerIndex - 1;
+    } else if (activeLayerIndex === layerIndex - 1) {
+        activeLayerIndex = layerIndex;
+    }
+
+    render();
+    showHint('Слой перемещён вверх');
+}
+
+/**
+ * Переместить слой вниз
+ */
+function moveLayerDown(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layerIndex = layers.findIndex(l => l.id === layerId);
+
+    if (layerIndex >= layers.length - 1) return;
+
+    [layers[layerIndex], layers[layerIndex + 1]] = [layers[layerIndex + 1], layers[layerIndex]];
+
+    const nextItem = layerItem.nextElementSibling;
+    if (nextItem) {
+        layerItem.parentNode.insertBefore(nextItem, layerItem);
+    }
+
+    if (activeLayerIndex === layerIndex) {
+        activeLayerIndex = layerIndex + 1;
+    } else if (activeLayerIndex === layerIndex + 1) {
+        activeLayerIndex = layerIndex;
+    }
+
+    render();
+    showHint('Слой перемещён вниз');
+}
+
+/**
+ * Переключить видимость слоя
+ */
+function toggleLayerVisibility(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+
+    if (!layer) return;
+
+    layer.visible = !layer.visible;
+
+    button.textContent = layer.visible ? '👁️' : '🚫';
+    layerItem.classList.toggle('layer-hidden', !layer.visible);
+
+    render();
+    showHint(layer.visible ? 'Слой показан' : 'Слой скрыт');
+}
+
+/**
+ * Заблокировать/разблокировать слой
+ */
+function toggleLayerLock(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+
+    if (!layer) return;
+
+    layer.locked = !layer.locked;
+
+    button.textContent = layer.locked ? '🔒' : '🔓';
+    layerItem.classList.toggle('layer-locked', layer.locked);
+
+    showHint(layer.locked ? 'Слой заблокирован' : 'Слой разблокирован');
+}
+
+/**
+ * Переименовать слой
+ */
+function renameLayer(input) {
+    const layerItem = input.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+
+    if (!layer) return;
+
+    layer.name = input.value || `Слой ${layer.id}`;
+    showHint(`Переименован в "${layer.name}"`);
+}
+
+/**
+ * Выбрать слой по индексу
+ */
+function selectLayerByIndex(index) {
+    if (index < 0 || index >= layers.length) return;
+
+    activeLayerIndex = index;
+    const layer = layers[index];
+
+    document.querySelectorAll('.layer-item').forEach(item => {
+        item.classList.remove('active');
+        if (parseInt(item.dataset.layerId) === layer.id) {
+            item.classList.add('active');
+        }
+    });
+
+    updateControls();
+}
+
+/**
+ * Создать DOM элемент слоя
+ */
+function createLayerElement(layer) {
+    const template = document.getElementById('layerTemplate');
+    const clone = template.content.cloneNode(true);
+
+    const layerItem = clone.querySelector('.layer-item');
+    layerItem.dataset.layerId = layer.id;
+
+    const nameInput = clone.querySelector('.layer-name-input');
+    nameInput.value = layer.name;
+
+    if (layer.image) {
+        const thumbnail = clone.querySelector('.layer-thumbnail');
+        thumbnail.src = layer.image.src;
+        thumbnail.style.display = 'block';
+        clone.querySelector('.layer-placeholder').style.display = 'none';
+
+        const sizeSpan = clone.querySelector('.layer-size');
+        sizeSpan.textContent = `${layer.image.width}×${layer.image.height}`;
+    }
+
+    layerItem.addEventListener('click', (e) => {
+        if (e.target.closest('.layer-actions') || e.target.closest('.layer-name-input')) return;
+        const id = parseInt(layerItem.dataset.layerId);
+        const idx = layers.findIndex(l => l.id === id);
+        selectLayerByIndex(idx);
+    });
+
+    return clone;
+}
+
+/**
+ * Обновить счётчик слоёв
+ */
+function updateLayerCount() {
+    document.getElementById('layerCount').textContent = layers.length;
+    document.getElementById('maxLayers').textContent = MAX_LAYERS;
+}
+
+/**
+ * Обновить кнопку добавления (деактивировать если макс)
+ */
+function updateAddButton() {
+    const btn = document.getElementById('addLayerBtn');
+    btn.disabled = layers.length >= MAX_LAYERS;
+    btn.style.opacity = layers.length >= MAX_LAYERS ? '0.5' : '1';
+}
+
+/**
+ * Открыть диалог выбора файла для слоя
+ */
+function openFileDialog(button) {
+    const layerItem = button.closest('.layer-item');
+    const fileInput = layerItem.querySelector('.layer-file-input');
+    fileInput.click();
+}
+
+/**
+ * Загрузить изображение в слой
+ */
+function loadImageToLayer(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const layerItem = input.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+
+    if (!layer) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            layer.image = img;
+
+            const thumbnail = layerItem.querySelector('.layer-thumbnail');
+            thumbnail.src = e.target.result;
+            thumbnail.style.display = 'block';
+            layerItem.querySelector('.layer-placeholder').style.display = 'none';
+
+            const sizeSpan = layerItem.querySelector('.layer-size');
+            sizeSpan.textContent = `${img.width}×${img.height}`;
+
+            // Выбрать слой после загрузки
+            const idx = layers.findIndex(l => l.id === layerId);
+            selectLayerByIndex(idx);
+
+            updateCanvasOverlay();
+            render();
+            showHint(`Загружено в ${layer.name}`);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 
 // Сбросить UI цветовой маски к значениям по умолчанию
 function resetColorMaskUI() {
@@ -141,37 +327,38 @@ function resetColorMaskUI() {
 }
 
 function updateControls() {
-    const layer = layers[activeLayer];
-    
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
+
     // Базовые
     document.getElementById('opacity').value = layer.opacity * 100;
     document.getElementById('scale').value = layer.scale * 100;
     document.getElementById('rotate').value = layer.rotation;
     document.getElementById('posX').value = layer.x;
     document.getElementById('posY').value = layer.y;
-    
+
     // Фильтры
     document.getElementById('brightness').value = layer.brightness;
     document.getElementById('contrast').value = layer.contrast;
     document.getElementById('saturation').value = layer.saturation;
     document.getElementById('temperature').value = layer.temperature;
     document.getElementById('hue').value = layer.hue;
-    
+
     // Эффекты
     document.getElementById('blur').value = layer.blur;
     document.getElementById('sharpness').value = layer.sharpness;
     document.getElementById('vignette').value = layer.vignette;
     document.getElementById('hdr').value = layer.hdr;
     document.getElementById('grain').value = layer.grain;
-    
+
     updateValues();
     updateBlendModeButtons();
 
     // Обновить кнопки ориентации для активного слоя
-    document.querySelectorAll(`.orientation-btn[data-layer="${activeLayer}"]`).forEach(btn => {
+    document.querySelectorAll('.layer-orientation-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.orientation === (layer.orientation || 'auto'));
     });
-    const valElement = document.getElementById(`orientation${activeLayer}Val`);
+    const valElement = document.getElementById('orientationVal');
     if (valElement) {
         valElement.textContent = ORIENTATION_LABELS[layer.orientation || 'auto'];
     }
@@ -198,48 +385,50 @@ function updateControls() {
     // Обновить UI Channel Mixer для активного слоя
     updateChannelMixerUI(layer);
 
-    // Обновить номер активного слоя в табе каналов
-    const layerNum5El = document.getElementById('activeLayerNum5');
-    if (layerNum5El) layerNum5El.textContent = activeLayer;
+    // Обновить номер активного слоя в табах
+    const layerDisplayNum = activeLayerIndex + 1;
+    ['activeLayerNum', 'activeLayerNum2', 'activeLayerNum3', 'activeLayerNum4', 'activeLayerNum5', 'bottomLayerNum'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = layerDisplayNum;
+    });
 }
 
 function updateBlendModeButtons() {
-    const layer = layers[activeLayer];
-    
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
+
     document.querySelectorAll('.blend-btn').forEach(btn => {
-        if (btn.dataset.blend === layer.blendMode) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+        btn.classList.toggle('active', btn.dataset.blend === layer.blendMode);
     });
-    
+
     updateBlendModeDisplay();
 }
 
 function updateBlendModeDisplay() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     const modeName = blendModeNames[layer.blendMode] || 'Обычный';
     document.getElementById('currentBlendMode').textContent = modeName;
 }
 
 function updateValues() {
-    const layer = layers[activeLayer];
-    
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
+
     // Базовые
     document.getElementById('opacityVal').textContent = Math.round(layer.opacity * 100) + '%';
     document.getElementById('scaleVal').textContent = Math.round(layer.scale * 100) + '%';
     document.getElementById('rotateVal').textContent = Math.round(layer.rotation) + '°';
     document.getElementById('xVal').textContent = Math.round(layer.x);
     document.getElementById('yVal').textContent = Math.round(layer.y);
-    
+
     // Фильтры
     document.getElementById('brightnessVal').textContent = layer.brightness;
     document.getElementById('contrastVal').textContent = layer.contrast;
     document.getElementById('saturationVal').textContent = layer.saturation;
     document.getElementById('temperatureVal').textContent = layer.temperature;
     document.getElementById('hueVal').textContent = layer.hue + '°';
-    
+
     // Эффекты
     document.getElementById('blurVal').textContent = layer.blur;
     document.getElementById('sharpnessVal').textContent = layer.sharpness;
@@ -249,39 +438,47 @@ function updateValues() {
 }
 
 function updateCanvasOverlay() {
-    const hasImages = layers[1].image || layers[2].image;
+    const hasImages = layers.some(l => l.image);
     document.getElementById('canvasOverlay').classList.toggle('hidden', hasImages);
 }
 
 function centerLayer() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     if (!layer.image) return;
-    
+
     const width = layer.image.width * layer.scale;
     const height = layer.image.height * layer.scale;
     layer.x = (canvas.width - width) / 2;
     layer.y = (canvas.height - height) / 2;
-    
+
     updateControls();
     render();
     showHint('Слой отцентрирован');
 }
 
 function resetLayer() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     if (!layer.image) return;
-    
+
     const img = layer.image;
-    layers[activeLayer] = {
+    const id = layer.id;
+    const name = layer.name;
+    layers[activeLayerIndex] = {
+        id,
+        name,
         image: img,
-        x: activeLayer === 1 ? 200 : 400,
-        y: activeLayer === 1 ? 150 : 250,
+        x: 200,
+        y: 150,
         scale: 1,
         rotation: 0,
         opacity: 1,
         blendMode: 'source-over',
         flipX: false,
         orientation: 'auto',
+        visible: true,
+        locked: false,
         brightness: 0,
         contrast: 0,
         saturation: 0,
@@ -291,94 +488,67 @@ function resetLayer() {
         sharpness: 0,
         vignette: 0,
         hdr: 0,
-        grain: 0
+        grain: 0,
+        colorMask: null,
+        channelMixer: null,
+        levels: null
     };
-    
+
     updateControls();
     render();
     showHint('Сброшено');
 }
 
 function flipH() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     if (!layer.image) return;
     layer.flipX = !layer.flipX;
     render();
     showHint('Отражено');
 }
 
-function swapLayers() {
-    [layers[1], layers[2]] = [layers[2], layers[1]];
-    
-    const prev1 = document.getElementById('preview1');
-    const prev2 = document.getElementById('preview2');
-    const temp = prev1.src;
-    prev1.src = prev2.src;
-    prev2.src = temp;
-    
-    const card1 = document.getElementById('layer1Card');
-    const card2 = document.getElementById('layer2Card');
-    const hasImg1 = card1.classList.contains('has-image');
-    const hasImg2 = card2.classList.contains('has-image');
-    
-    card1.classList.toggle('has-image', hasImg2);
-    card2.classList.toggle('has-image', hasImg1);
-    
-    if (hasImg2) {
-        prev1.style.display = 'block';
-        card1.querySelector('.upload-placeholder').style.display = 'none';
-    } else {
-        prev1.style.display = 'none';
-        card1.querySelector('.upload-placeholder').style.display = 'block';
-    }
-    
-    if (hasImg1) {
-        prev2.style.display = 'block';
-        card2.querySelector('.upload-placeholder').style.display = 'none';
-    } else {
-        prev2.style.display = 'none';
-        card2.querySelector('.upload-placeholder').style.display = 'block';
-    }
-    
-    updateControls();
-    render();
-    showHint('Поменяны');
-}
-
 function fitCanvas() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     if (!layer.image) return;
-    
+
     const scaleX = canvas.width / layer.image.width;
     const scaleY = canvas.height / layer.image.height;
     layer.scale = Math.min(scaleX, scaleY) * 0.95;
-    
+
     centerLayer();
 }
 
 function downloadImage() {
-    if (!layers[1].image && !layers[2].image) {
+    if (!layers.some(l => l.image)) {
         showHint('Загрузите фото!');
         return;
     }
-    
+
     const link = document.createElement('a');
     link.download = `merged-${Date.now()}.png`;
     link.href = canvas.toDataURL('image/png', 1.0);
     link.click();
-    
+
     showHint('✅ Сохранено!');
 }
 
 function resetAll() {
     if (confirm('Удалить всё?')) {
-        [1, 2].forEach(num => removeLayer(num));
+        layers.length = 0;
+        activeLayerIndex = -1;
+        nextLayerId = 1;
+        document.getElementById('layersList').innerHTML = '';
+        updateLayerCount();
+        updateAddButton();
+        updateCanvasOverlay();
+        render();
         showHint('Удалено');
     }
 }
 
-// Инициализация загрузки слоёв — вызывается из app.js после определения глобальных переменных
+// Инициализация — вызывается из app.js после определения глобальных переменных
 function initLayerManager() {
-    initUpload(1);
-    initUpload(2);
+    // Слои добавляются динамически через addNewLayer()
 }

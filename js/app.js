@@ -6,7 +6,7 @@ const ctx = canvas.getContext('2d');
 const canvasWrapper = document.getElementById('canvasWrapper');
 const canvasContainer = document.getElementById('canvasContainer');
 
-let activeLayer = 1;
+let activeLayerIndex = -1;
 let uiScale = 1;
 let canvasZoom = 1;
 let currentTab = 'basic';
@@ -18,18 +18,26 @@ const CANVAS_SIZES = {
     square: { width: 1200, height: 1200 }
 };
 
-// Структура слоёв с фильтрами и эффектами
-let layers = {
-    1: { 
-        image: null, 
-        x: 200, 
-        y: 150, 
-        scale: 1, 
-        rotation: 0, 
-        opacity: 1, 
-        blendMode: 'source-over', 
+// Структура слоёв — динамический массив
+let layers = [];
+let nextLayerId = 1;
+const MAX_LAYERS = 5;
+
+function createNewLayer() {
+    return {
+        id: nextLayerId++,
+        name: `Слой ${nextLayerId - 1}`,
+        image: null,
+        x: 200,
+        y: 150,
+        scale: 1,
+        rotation: 0,
+        opacity: 1,
+        blendMode: 'source-over',
         flipX: false,
         orientation: 'auto',
+        visible: true,
+        locked: false,
         // Фильтры
         brightness: 0,
         contrast: 0,
@@ -42,35 +50,12 @@ let layers = {
         vignette: 0,
         hdr: 0,
         grain: 0,
+        // Маски и каналы
         colorMask: null,
         channelMixer: null,
         levels: null
-    },
-    2: { 
-        image: null, 
-        x: 400, 
-        y: 250, 
-        scale: 1, 
-        rotation: 0, 
-        opacity: 1, 
-        blendMode: 'source-over', 
-        flipX: false,
-        orientation: 'auto',
-        brightness: 0,
-        contrast: 0,
-        saturation: 0,
-        temperature: 0,
-        hue: 0,
-        blur: 0,
-        sharpness: 0,
-        vignette: 0,
-        hdr: 0,
-        grain: 0,
-        colorMask: null,
-        channelMixer: null,
-        levels: null
-    }
-};
+    };
+}
 
 let selectedColorRange = null;
 
@@ -124,11 +109,12 @@ initLayerManager();
 
 // Запуск приложения
 updateCanvasOverlay();
-selectLayer(1);
 
 setTimeout(() => {
     updateCanvasSize();
     centerCanvas();
     applyCanvasZoom();
+    updateLayerCount();
+    updateAddButton();
     document.getElementById('hint').classList.add('hidden');
 }, 100);

@@ -126,22 +126,24 @@ function initSlider(sliderId, callback) {
 }
 
 function setBlendMode(mode) {
-    layers[activeLayer].blendMode = mode;
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    layers[activeLayerIndex].blendMode = mode;
     updateBlendModeButtons();
     render();
     showHint(blendModeNames[mode]);
 }
 
-function setOrientation(layerNum, orientation) {
-    layers[layerNum].orientation = orientation;
+function setOrientation(orientation) {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    layers[activeLayerIndex].orientation = orientation;
 
     // Обновить активную кнопку
-    document.querySelectorAll(`.orientation-btn[data-layer="${layerNum}"]`).forEach(btn => {
+    document.querySelectorAll('.layer-orientation-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.orientation === orientation);
     });
 
     // Обновить текстовое значение
-    const valElement = document.getElementById(`orientation${layerNum}Val`);
+    const valElement = document.getElementById('orientationVal');
     if (valElement) {
         valElement.textContent = ORIENTATION_LABELS[orientation];
     }
@@ -159,8 +161,9 @@ function toggleSidebar() {
 
 function applyColorMaskToLayer() {
     if (!selectedColorRange) return;
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
 
-    const layer = layers[activeLayer];
+    const layer = layers[activeLayerIndex];
     layer.colorMask = {
         range: selectedColorRange,
         tolerance: parseInt(document.getElementById('tolerance').value),
@@ -176,7 +179,8 @@ function applyColorMaskToLayer() {
 }
 
 function resetColorMask() {
-    layers[activeLayer].colorMask = null;
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    layers[activeLayerIndex].colorMask = null;
     resetColorMaskUI();
     render();
     showHint('Маска сброшена');
@@ -296,104 +300,118 @@ function initUIControls() {
         });
     });
 
-    // Кнопки ориентации
-    document.querySelectorAll('.orientation-btn').forEach(btn => {
+    // Кнопки ориентации активного слоя
+    document.querySelectorAll('.layer-orientation-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            const layerNum = parseInt(this.dataset.layer);
             const orientation = this.dataset.orientation;
-            setOrientation(layerNum, orientation);
+            setOrientation(orientation);
         });
     });
 
     // Инициализация ползунков - Базовые
     initSlider('opacity', function() {
-        layers[activeLayer].opacity = document.getElementById('opacity').value / 100;
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].opacity = document.getElementById('opacity').value / 100;
         updateValues();
         render();
     });
 
     initSlider('scale', function() {
-        layers[activeLayer].scale = document.getElementById('scale').value / 100;
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].scale = document.getElementById('scale').value / 100;
         updateValues();
         render();
     });
 
     initSlider('rotate', function() {
-        layers[activeLayer].rotation = parseFloat(document.getElementById('rotate').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].rotation = parseFloat(document.getElementById('rotate').value);
         updateValues();
         render();
     });
 
     initSlider('posX', function() {
-        layers[activeLayer].x = parseFloat(document.getElementById('posX').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].x = parseFloat(document.getElementById('posX').value);
         updateValues();
         render();
     });
 
     initSlider('posY', function() {
-        layers[activeLayer].y = parseFloat(document.getElementById('posY').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].y = parseFloat(document.getElementById('posY').value);
         updateValues();
         render();
     });
 
     // Инициализация ползунков - Фильтры
     initSlider('brightness', function() {
-        layers[activeLayer].brightness = parseFloat(document.getElementById('brightness').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].brightness = parseFloat(document.getElementById('brightness').value);
         updateValues();
         render();
     });
 
     initSlider('contrast', function() {
-        layers[activeLayer].contrast = parseFloat(document.getElementById('contrast').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].contrast = parseFloat(document.getElementById('contrast').value);
         updateValues();
         render();
     });
 
     initSlider('saturation', function() {
-        layers[activeLayer].saturation = parseFloat(document.getElementById('saturation').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].saturation = parseFloat(document.getElementById('saturation').value);
         updateValues();
         render();
     });
 
     initSlider('temperature', function() {
-        layers[activeLayer].temperature = parseFloat(document.getElementById('temperature').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].temperature = parseFloat(document.getElementById('temperature').value);
         updateValues();
         render();
     });
 
     initSlider('hue', function() {
-        layers[activeLayer].hue = parseFloat(document.getElementById('hue').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].hue = parseFloat(document.getElementById('hue').value);
         updateValues();
         render();
     });
 
     // Инициализация ползунков - Эффекты
     initSlider('blur', function() {
-        layers[activeLayer].blur = parseFloat(document.getElementById('blur').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].blur = parseFloat(document.getElementById('blur').value);
         updateValues();
         render();
     });
 
     initSlider('sharpness', function() {
-        layers[activeLayer].sharpness = parseFloat(document.getElementById('sharpness').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].sharpness = parseFloat(document.getElementById('sharpness').value);
         updateValues();
         render();
     });
 
     initSlider('vignette', function() {
-        layers[activeLayer].vignette = parseFloat(document.getElementById('vignette').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].vignette = parseFloat(document.getElementById('vignette').value);
         updateValues();
         render();
     });
 
     initSlider('hdr', function() {
-        layers[activeLayer].hdr = parseFloat(document.getElementById('hdr').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].hdr = parseFloat(document.getElementById('hdr').value);
         updateValues();
         render();
     });
 
     initSlider('grain', function() {
-        layers[activeLayer].grain = parseFloat(document.getElementById('grain').value);
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].grain = parseFloat(document.getElementById('grain').value);
         updateValues();
         render();
     });
@@ -441,7 +459,8 @@ function initChannelMixerControls() {
 }
 
 function updateChannelMixer() {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
 
     layer.channelMixer = {
         redChannel: {
@@ -547,13 +566,14 @@ function applyChannelMixerPreset(presetName) {
 }
 
 function resetChannelMixer() {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
     document.getElementById('channelMixerPreset').value = 'default';
     document.getElementById('blackPoint').value = 0;
     document.getElementById('whitePoint').value = 255;
     document.getElementById('gamma').value = 1.0;
 
-    layers[activeLayer].channelMixer = null;
-    layers[activeLayer].levels = null;
+    layers[activeLayerIndex].channelMixer = null;
+    layers[activeLayerIndex].levels = null;
 
     // Сброс слайдеров Channel Mixer через пресет по умолчанию
     const preset = CHANNEL_MIXER_PRESETS['default'];
@@ -568,7 +588,7 @@ function resetChannelMixer() {
     document.getElementById('blueFromBlue').value = preset.blueChannel.blue;
 
     // Сброс отображаемых значений через updateChannelMixerUI
-    updateChannelMixerUI(layers[activeLayer]);
+    updateChannelMixerUI(layers[activeLayerIndex]);
 
     render();
     showHint('Каналы сброшены');
