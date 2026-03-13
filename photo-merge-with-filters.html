@@ -1,0 +1,2330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.5, maximum-scale=3.0">
+    <title>Слияние фотографий - Фильтры</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --sidebar-width: 320px;
+            --toolbar-height: 60px;
+            --bottom-bar-height: 45px;
+            --ui-scale: 1;
+            --canvas-zoom: 1;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #fff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+        }
+
+        .main-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            transform: scale(var(--ui-scale));
+            transform-origin: top left;
+        }
+
+        .sidebar {
+            width: calc(var(--sidebar-width) / var(--ui-scale));
+            min-width: calc(250px / var(--ui-scale));
+            max-width: calc(500px / var(--ui-scale));
+            background: #252525;
+            display: flex;
+            flex-direction: column;
+            border-right: 3px solid #3a3a3a;
+            transition: transform 0.3s ease;
+            position: relative;
+            z-index: 10;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(calc(-1 * var(--sidebar-width) / var(--ui-scale)));
+        }
+
+        .sidebar-resizer {
+            position: absolute;
+            right: -6px;
+            top: 0;
+            bottom: 0;
+            width: 12px;
+            cursor: col-resize;
+            z-index: 100;
+            background: transparent;
+            transition: background 0.2s;
+        }
+
+        .sidebar-resizer:hover,
+        .sidebar-resizer:active {
+            background: rgba(0, 120, 212, 0.3);
+        }
+
+        .sidebar-resizer::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 40px;
+            background: #555;
+            border-radius: 2px;
+        }
+
+        .sidebar-header {
+            padding: 12px 15px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            min-height: 50px;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .zoom-controls {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .zoom-btn {
+            background: #3a3a3a;
+            border: none;
+            color: #fff;
+            width: 26px;
+            height: 26px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:active {
+            background: #0078d4;
+            transform: scale(0.9);
+        }
+
+        .zoom-display {
+            font-size: 0.75em;
+            color: #888;
+            min-width: 38px;
+            text-align: center;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 12px;
+            min-height: 0;
+        }
+
+        .upload-section {
+            margin-bottom: 12px;
+        }
+
+        .upload-title {
+            font-size: 0.8em;
+            text-transform: uppercase;
+            color: #0078d4;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .upload-card {
+            background: #2d2d2d;
+            border: 2px dashed #444;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            margin-bottom: 8px;
+            min-height: 80px;
+        }
+
+        .upload-card:active {
+            border-color: #0078d4;
+            background: #333;
+            transform: scale(0.98);
+        }
+
+        .upload-card.active {
+            border-color: #0078d4;
+            border-style: solid;
+            background: rgba(0, 120, 212, 0.15);
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+        }
+
+        .upload-card.has-image {
+            border-color: #16c60c;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .upload-placeholder {
+            text-align: center;
+            padding: 12px;
+            color: #888;
+        }
+
+        .upload-placeholder-icon {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .upload-placeholder-text {
+            font-size: 0.85em;
+        }
+
+        .upload-preview {
+            width: 100%;
+            display: block;
+            cursor: pointer;
+            max-height: 120px;
+            object-fit: cover;
+        }
+
+        .upload-card input[type="file"] {
+            display: none;
+        }
+
+        .layer-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.95), transparent);
+            padding: 8px;
+            display: none;
+            gap: 6px;
+        }
+
+        .upload-card.has-image .layer-controls {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .layer-control-btn {
+            background: rgba(255,255,255,0.25);
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .layer-control-btn:active {
+            background: rgba(255,255,255,0.4);
+            transform: scale(0.95);
+        }
+
+        /* Табы для переключения между настройками */
+        .layer-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #3a3a3a;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 8px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+            transition: all 0.2s;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .tab-btn:active {
+            transform: scale(0.95);
+        }
+
+        .tab-btn.active {
+            background: #0078d4;
+            border-color: #0078d4;
+            color: white;
+        }
+
+        /* Секции с контентом табов */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .param-group {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 120, 212, 0.05);
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .param-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+            color: #fff;
+            font-weight: 600;
+            align-items: center;
+        }
+
+        .param-value {
+            color: #0078d4;
+            font-weight: 700;
+            font-size: 0.95em;
+            min-width: 55px;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #444;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            position: relative;
+            pointer-events: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0078d4, #1890ff);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.5);
+            border: 2px solid #fff;
+            pointer-events: auto;
+        }
+
+        input[type="range"]:active::-webkit-slider-thumb {
+            transform: scale(1.2);
+            box-shadow: 0 3px 12px rgba(0, 120, 212, 0.7);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0078d4, #1890ff);
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.5);
+            pointer-events: auto;
+        }
+
+        .blend-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .blend-btn {
+            background: #2d2d2d;
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 10px 8px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .blend-btn:active {
+            transform: scale(0.95);
+        }
+
+        .blend-btn.active {
+            background: #0078d4;
+            border-color: #0078d4;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0, 120, 212, 0.4);
+        }
+
+        /* Кнопки быстрых фильтров */
+        .filter-presets {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .preset-btn {
+            background: #2d2d2d;
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 8px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+            transition: all 0.2s;
+            font-weight: 600;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preset-btn:active {
+            transform: scale(0.95);
+            background: #3a3a3a;
+        }
+
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+            min-width: 0;
+        }
+
+        .toolbar {
+            height: var(--toolbar-height);
+            background: #252525;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            gap: 8px;
+            flex-shrink: 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .toolbar::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .toolbar::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 2px;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .toolbar-divider {
+            width: 1px;
+            height: 30px;
+            background: #3a3a3a;
+            margin: 0 6px;
+            flex-shrink: 0;
+        }
+
+        .toolbar-btn {
+            background: #2d2d2d;
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 8px 15px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            font-weight: 600;
+            min-height: 40px;
+            flex-shrink: 0;
+        }
+
+        .toolbar-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toolbar-btn.primary {
+            background: #0078d4;
+            border-color: #0078d4;
+            color: white;
+        }
+
+        .toolbar-btn.success {
+            background: #16c60c;
+            border-color: #16c60c;
+            color: white;
+        }
+
+        .toolbar-btn.danger {
+            background: #d13438;
+            border-color: #d13438;
+            color: white;
+        }
+
+        .spacer {
+            flex: 1;
+            min-width: 10px;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 0;
+            overflow: auto;
+            position: relative;
+            min-height: 0;
+            background: #1e1e1e;
+        }
+
+        .canvas-wrapper::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+
+        .canvas-wrapper::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+
+        .canvas-wrapper::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 6px;
+        }
+
+        .canvas-wrapper::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+
+        .canvas-wrapper::-webkit-scrollbar-corner {
+            background: #1e1e1e;
+        }
+
+        .canvas-container {
+            position: relative;
+            min-width: 100%;
+            min-height: 100%;
+            display: inline-block;
+            padding: 20px;
+            transform: scale(var(--canvas-zoom));
+            transform-origin: top left;
+            transition: transform 0.2s ease;
+        }
+
+        #canvas {
+            border: 1px solid #3a3a3a;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+            cursor: grab;
+            background: white;
+            display: block;
+        }
+
+        #canvas:active {
+            cursor: grabbing;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            color: #666;
+            z-index: 1;
+        }
+
+        .canvas-overlay.hidden {
+            display: none;
+        }
+
+        .canvas-overlay-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        .canvas-overlay-text {
+            font-size: 1.2em;
+            opacity: 0.6;
+        }
+
+        .bottom-bar {
+            height: var(--bottom-bar-height);
+            background: #252525;
+            border-top: 1px solid #3a3a3a;
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            font-size: 0.85em;
+            color: #888;
+            justify-content: space-between;
+            flex-shrink: 0;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        .info-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            font-size: 0.9em;
+        }
+
+        .info-divider {
+            width: 1px;
+            height: 18px;
+            background: #3a3a3a;
+            margin: 0 6px;
+        }
+
+        .toggle-sidebar {
+            position: absolute;
+            left: calc(var(--sidebar-width) / var(--ui-scale));
+            top: 50%;
+            transform: translateY(-50%) scale(calc(1 / var(--ui-scale)));
+            background: #252525;
+            border: 2px solid #3a3a3a;
+            border-left: none;
+            color: #ccc;
+            width: 32px;
+            height: 70px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0 8px 8px 0;
+            transition: all 0.3s;
+            z-index: 11;
+            font-size: 1.2em;
+            transform-origin: left center;
+        }
+
+        .toggle-sidebar:active {
+            background: #3a3a3a;
+        }
+
+        .sidebar.collapsed + .toggle-sidebar {
+            left: 0;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .quick-btn {
+            background: #2d2d2d;
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 12px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-weight: 600;
+            min-height: 48px;
+        }
+
+        .quick-btn:active {
+            transform: scale(0.95);
+            background: #3a3a3a;
+        }
+
+        .hint {
+            position: fixed;
+            bottom: calc(var(--bottom-bar-height) + 12px);
+            right: 15px;
+            background: rgba(0, 120, 212, 0.95);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .hint.hidden {
+            display: none;
+        }
+
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #2d2d2d;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:active {
+            background: #666;
+        }
+
+        .active-layer-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: #0078d4;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.5);
+            z-index: 10;
+        }
+
+        .upload-card .active-layer-badge {
+            display: none;
+        }
+
+        .upload-card.active .active-layer-badge {
+            display: block;
+        }
+
+        .scale-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #0078d4;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 0.85em;
+            font-weight: 700;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .scale-indicator.visible {
+            opacity: 1;
+        }
+
+        .canvas-zoom-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #16c60c;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 700;
+            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        }
+
+        .canvas-zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            background: rgba(37, 37, 37, 0.95);
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .canvas-zoom-btn {
+            background: rgba(0, 120, 212, 0.8);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-weight: 700;
+        }
+
+        .canvas-zoom-btn:active {
+            transform: scale(0.9);
+            background: rgba(0, 120, 212, 1);
+        }
+
+        .canvas-zoom-btn.reset {
+            background: rgba(85, 85, 85, 0.8);
+            font-size: 0.8em;
+            min-width: 50px;
+        }
+
+        .canvas-zoom-btn.reset:active {
+            background: rgba(85, 85, 85, 1);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 100;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+                width: calc(var(--sidebar-width) / var(--ui-scale));
+            }
+
+            .toolbar-btn span:not(.emoji) {
+                display: none;
+            }
+
+            .canvas-zoom-btn {
+                width: 35px;
+                height: 35px;
+                font-size: 1.1em;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .param-group {
+                margin-bottom: 10px;
+                padding: 8px;
+            }
+
+            .upload-card {
+                min-height: 70px;
+            }
+
+            .upload-placeholder-icon {
+                font-size: 1.5em;
+            }
+
+            .blend-btn {
+                min-height: 36px;
+                padding: 8px 6px;
+            }
+
+            .quick-btn {
+                min-height: 42px;
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="scale-indicator" id="scaleIndicator">Масштаб: 100%</div>
+
+    <div class="main-container" id="mainContainer">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-resizer" id="sidebarResizer"></div>
+            
+            <div class="sidebar-header">
+                <h1>🎨 Слияние</h1>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomUI(-0.1)" title="Уменьшить UI">−</button>
+                    <div class="zoom-display" id="uiZoomDisplay">100%</div>
+                    <button class="zoom-btn" onclick="zoomUI(0.1)" title="Увеличить UI">+</button>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="upload-section">
+                    <div class="upload-title">Слой 1</div>
+                    <div class="upload-card" id="layer1Card" data-layer="1">
+                        <div class="active-layer-badge">Активен</div>
+                        <input type="file" id="file1" accept="image/*">
+                        <div class="upload-placeholder">
+                            <div class="upload-placeholder-icon">📷</div>
+                            <div class="upload-placeholder-text">Загрузить</div>
+                        </div>
+                        <img id="preview1" class="upload-preview" style="display:none;">
+                        <div class="layer-controls">
+                            <button class="layer-control-btn" onclick="selectLayer(1)">Выбрать</button>
+                            <button class="layer-control-btn" onclick="removeLayer(1)">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-section">
+                    <div class="upload-title">Слой 2</div>
+                    <div class="upload-card" id="layer2Card" data-layer="2">
+                        <div class="active-layer-badge">Активен</div>
+                        <input type="file" id="file2" accept="image/*">
+                        <div class="upload-placeholder">
+                            <div class="upload-placeholder-icon">📷</div>
+                            <div class="upload-placeholder-text">Загрузить</div>
+                        </div>
+                        <img id="preview2" class="upload-preview" style="display:none;">
+                        <div class="layer-controls">
+                            <button class="layer-control-btn" onclick="selectLayer(2)">Выбрать</button>
+                            <button class="layer-control-btn" onclick="removeLayer(2)">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Табы для переключения -->
+                <div class="layer-tabs">
+                    <button class="tab-btn active" onclick="switchTab('basic')">⚙️ Базовые</button>
+                    <button class="tab-btn" onclick="switchTab('filters')">🎨 Фильтры</button>
+                    <button class="tab-btn" onclick="switchTab('effects')">✨ Эффекты</button>
+                </div>
+
+                <!-- ТАБ: Базовые настройки -->
+                <div class="tab-content active" id="tab-basic">
+                    <div class="upload-title">⚙️ Слой <span id="activeLayerNum">1</span></div>
+                    
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>👻 Прозрачность</span>
+                            <span class="param-value" id="opacityVal">100%</span>
+                        </div>
+                        <input type="range" id="opacity" min="0" max="100" value="100" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🔍 Масштаб</span>
+                            <span class="param-value" id="scaleVal">100%</span>
+                        </div>
+                        <input type="range" id="scale" min="10" max="300" value="100" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🔄 Поворот</span>
+                            <span class="param-value" id="rotateVal">0°</span>
+                        </div>
+                        <input type="range" id="rotate" min="0" max="360" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>↔️ Позиция X</span>
+                            <span class="param-value" id="xVal">0</span>
+                        </div>
+                        <input type="range" id="posX" min="-500" max="1500" value="0" step="5">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>↕️ Позиция Y</span>
+                            <span class="param-value" id="yVal">0</span>
+                        </div>
+                        <input type="range" id="posY" min="-500" max="1500" value="0" step="5">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎨 Режим наложения</span>
+                        </div>
+                        <div class="blend-grid" id="blendGrid">
+                            <button class="blend-btn" data-blend="source-over">Обычный</button>
+                            <button class="blend-btn" data-blend="multiply">Умножение</button>
+                            <button class="blend-btn" data-blend="screen">Экран</button>
+                            <button class="blend-btn" data-blend="overlay">Наложение</button>
+                            <button class="blend-btn" data-blend="darken">Темнее</button>
+                            <button class="blend-btn" data-blend="lighten">Светлее</button>
+                            <button class="blend-btn" data-blend="color-dodge">Dodge</button>
+                            <button class="blend-btn" data-blend="hard-light">Свет</button>
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="centerLayer()">🎯 Центр</button>
+                        <button class="quick-btn" onclick="resetLayer()">↺ Сброс</button>
+                        <button class="quick-btn" onclick="flipH()">↔️ Отразить</button>
+                        <button class="quick-btn" onclick="swapLayers()">🔄 Поменять</button>
+                    </div>
+                </div>
+
+                <!-- ТАБ: Фильтры -->
+                <div class="tab-content" id="tab-filters">
+                    <div class="upload-title">🎨 Фильтры слоя <span id="activeLayerNum2">1</span></div>
+                    
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>☀️ Яркость</span>
+                            <span class="param-value" id="brightnessVal">0</span>
+                        </div>
+                        <input type="range" id="brightness" min="-100" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌓 Контраст</span>
+                            <span class="param-value" id="contrastVal">0</span>
+                        </div>
+                        <input type="range" id="contrast" min="-100" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌈 Насыщенность</span>
+                            <span class="param-value" id="saturationVal">0</span>
+                        </div>
+                        <input type="range" id="saturation" min="-100" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌡️ Температура</span>
+                            <span class="param-value" id="temperatureVal">0</span>
+                        </div>
+                        <input type="range" id="temperature" min="-100" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎨 Оттенок</span>
+                            <span class="param-value" id="hueVal">0°</span>
+                        </div>
+                        <input type="range" id="hue" min="-180" max="180" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Пресеты</span>
+                        </div>
+                        <div class="filter-presets">
+                            <button class="preset-btn" onclick="applyPreset('none')">Сброс</button>
+                            <button class="preset-btn" onclick="applyPreset('bw')">Ч/Б</button>
+                            <button class="preset-btn" onclick="applyPreset('sepia')">Сепия</button>
+                            <button class="preset-btn" onclick="applyPreset('warm')">Тепло</button>
+                            <button class="preset-btn" onclick="applyPreset('cold')">Холод</button>
+                            <button class="preset-btn" onclick="applyPreset('vintage')">Винтаж</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ТАБ: Эффекты -->
+                <div class="tab-content" id="tab-effects">
+                    <div class="upload-title">✨ Эффекты слоя <span id="activeLayerNum3">1</span></div>
+                    
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌫️ Размытие</span>
+                            <span class="param-value" id="blurVal">0</span>
+                        </div>
+                        <input type="range" id="blur" min="0" max="20" value="0" step="0.5">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>✨ Резкость</span>
+                            <span class="param-value" id="sharpnessVal">0</span>
+                        </div>
+                        <input type="range" id="sharpness" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌑 Виньетирование</span>
+                            <span class="param-value" id="vignetteVal">0</span>
+                        </div>
+                        <input type="range" id="vignette" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💎 HDR эффект</span>
+                            <span class="param-value" id="hdrVal">0</span>
+                        </div>
+                        <input type="range" id="hdr" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎬 Зерно пленки</span>
+                            <span class="param-value" id="grainVal">0</span>
+                        </div>
+                        <input type="range" id="grain" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Быстрые эффекты</span>
+                        </div>
+                        <div class="filter-presets">
+                            <button class="preset-btn" onclick="applyEffect('none')">Сброс</button>
+                            <button class="preset-btn" onclick="applyEffect('soft')">Мягко</button>
+                            <button class="preset-btn" onclick="applyEffect('dramatic')">Драма</button>
+                            <button class="preset-btn" onclick="applyEffect('dreamy')">Мечта</button>
+                            <button class="preset-btn" onclick="applyEffect('gritty')">Гритти</button>
+                            <button class="preset-btn" onclick="applyEffect('cinema')">Кино</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <button class="toggle-sidebar" onclick="toggleSidebar()">
+            <span id="toggleIcon">◀</span>
+        </button>
+
+        <main class="workspace">
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" onclick="document.getElementById('file1').click()">
+                        <span class="emoji">📁</span> <span>Загрузить 1</span>
+                    </button>
+                    <button class="toolbar-btn" onclick="document.getElementById('file2').click()">
+                        <span class="emoji">📁</span> <span>Загрузить 2</span>
+                    </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" onclick="zoomCanvasBy(-0.1)"><span class="emoji">🔍</span> <span>−</span></button>
+                    <button class="toolbar-btn" onclick="resetCanvasZoom()"><span class="emoji">↺</span> <span>100%</span></button>
+                    <button class="toolbar-btn" onclick="zoomCanvasBy(0.1)"><span class="emoji">🔍</span> <span>+</span></button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" onclick="fitCanvas()"><span class="emoji">📐</span> <span>Подогнать</span></button>
+                    <button class="toolbar-btn" onclick="centerCanvas()"><span class="emoji">🎯</span> <span>Центр</span></button>
+                </div>
+
+                <div class="spacer"></div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn success" onclick="downloadImage()">
+                        <span class="emoji">💾</span> <span>Скачать</span>
+                    </button>
+                    <button class="toolbar-btn danger" onclick="resetAll()">
+                        <span class="emoji">🗑️</span> <span>Очистить</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="canvas" width="1400" height="900"></canvas>
+                    <div class="canvas-overlay" id="canvasOverlay">
+                        <div class="canvas-overlay-icon">🖼️</div>
+                        <div class="canvas-overlay-text">Загрузите фотографии</div>
+                    </div>
+                </div>
+
+                <div class="canvas-zoom-indicator" id="canvasZoomIndicator">
+                    Canvas: 100%
+                </div>
+
+                <div class="canvas-zoom-controls">
+                    <button class="canvas-zoom-btn" onclick="zoomCanvasBy(-0.2)" title="Уменьшить">−</button>
+                    <button class="canvas-zoom-btn reset" onclick="resetCanvasZoom()" title="Сбросить">100%</button>
+                    <button class="canvas-zoom-btn" onclick="zoomCanvasBy(0.2)" title="Увеличить">+</button>
+                </div>
+            </div>
+
+            <div class="bottom-bar">
+                <div class="info-group">
+                    <div class="info-item">
+                        <span>Слой:</span>
+                        <strong style="color: #0078d4;" id="bottomLayerNum">1</strong>
+                    </div>
+                    <div class="info-divider"></div>
+                    <div class="info-item">
+                        <span>Режим:</span>
+                        <strong id="currentBlendMode">Обычный</strong>
+                    </div>
+                    <div class="info-divider"></div>
+                    <div class="info-item">
+                        <span>Zoom:</span>
+                        <strong id="bottomCanvasZoom">100%</strong>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span>💡 Фильтры и эффекты активны</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="hint hidden" id="hint">Совет</div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const canvasContainer = document.getElementById('canvasContainer');
+        
+        let activeLayer = 1;
+        let uiScale = 1;
+        let canvasZoom = 1;
+        let currentTab = 'basic';
+        
+        // Структура слоёв с фильтрами и эффектами
+        let layers = {
+            1: { 
+                image: null, 
+                x: 200, 
+                y: 150, 
+                scale: 1, 
+                rotation: 0, 
+                opacity: 1, 
+                blendMode: 'source-over', 
+                flipX: false,
+                // Фильтры
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                temperature: 0,
+                hue: 0,
+                // Эффекты
+                blur: 0,
+                sharpness: 0,
+                vignette: 0,
+                hdr: 0,
+                grain: 0
+            },
+            2: { 
+                image: null, 
+                x: 400, 
+                y: 250, 
+                scale: 1, 
+                rotation: 0, 
+                opacity: 1, 
+                blendMode: 'source-over', 
+                flipX: false,
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                temperature: 0,
+                hue: 0,
+                blur: 0,
+                sharpness: 0,
+                vignette: 0,
+                hdr: 0,
+                grain: 0
+            }
+        };
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+
+        const blendModeNames = {
+            'source-over': 'Обычный',
+            'multiply': 'Умножение',
+            'screen': 'Экран',
+            'overlay': 'Наложение',
+            'darken': 'Темнее',
+            'lighten': 'Светлее',
+            'color-dodge': 'Dodge',
+            'hard-light': 'Свет'
+        };
+
+        // ===== ПЕРЕКЛЮЧЕНИЕ ТАБОВ =====
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // Обновляем активные кнопки
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Показываем нужный контент
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // ===== ПРИМЕНЕНИЕ ФИЛЬТРОВ =====
+        function applyFiltersToImage(layer) {
+            if (!layer.image) return layer.image;
+            
+            // Создаём временный canvas для применения фильтров
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = layer.image.width;
+            tempCanvas.height = layer.image.height;
+            
+            // Рисуем оригинал
+            tempCtx.drawImage(layer.image, 0, 0);
+            
+            // Получаем данные изображения
+            let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            let data = imageData.data;
+            
+            // Применяем фильтры
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+                
+                // Яркость
+                if (layer.brightness !== 0) {
+                    const bright = layer.brightness * 2.55;
+                    r += bright;
+                    g += bright;
+                    b += bright;
+                }
+                
+                // Контраст
+                if (layer.contrast !== 0) {
+                    const factor = (259 * (layer.contrast + 255)) / (255 * (259 - layer.contrast));
+                    r = factor * (r - 128) + 128;
+                    g = factor * (g - 128) + 128;
+                    b = factor * (b - 128) + 128;
+                }
+                
+                // Насыщенность
+                if (layer.saturation !== 0) {
+                    const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                    const satFactor = 1 + (layer.saturation / 100);
+                    r = gray + (r - gray) * satFactor;
+                    g = gray + (g - gray) * satFactor;
+                    b = gray + (b - gray) * satFactor;
+                }
+                
+                // Температура (теплые/холодные тона)
+                if (layer.temperature !== 0) {
+                    const temp = layer.temperature / 100;
+                    r += temp * 50;
+                    b -= temp * 50;
+                }
+                
+                // Оттенок (hue shift)
+                if (layer.hue !== 0) {
+                    // Конвертируем RGB в HSL и обратно с изменением H
+                    const hsl = rgbToHsl(r, g, b);
+                    hsl[0] = (hsl[0] + layer.hue / 360) % 1;
+                    const rgb = hslToRgb(hsl[0], hsl[1], hsl[2]);
+                    r = rgb[0];
+                    g = rgb[1];
+                    b = rgb[2];
+                }
+                
+                // HDR эффект
+                if (layer.hdr > 0) {
+                    const hdrFactor = layer.hdr / 100;
+                    const avg = (r + g + b) / 3;
+                    if (avg > 128) {
+                        r = r + (255 - r) * hdrFactor * 0.3;
+                        g = g + (255 - g) * hdrFactor * 0.3;
+                        b = b + (255 - b) * hdrFactor * 0.3;
+                    } else {
+                        r = r * (1 - hdrFactor * 0.3);
+                        g = g * (1 - hdrFactor * 0.3);
+                        b = b * (1 - hdrFactor * 0.3);
+                    }
+                }
+                
+                // Ограничиваем значения
+                data[i] = Math.max(0, Math.min(255, r));
+                data[i + 1] = Math.max(0, Math.min(255, g));
+                data[i + 2] = Math.max(0, Math.min(255, b));
+            }
+            
+            // Зерно пленки
+            if (layer.grain > 0) {
+                const grainAmount = layer.grain / 100;
+                for (let i = 0; i < data.length; i += 4) {
+                    const noise = (Math.random() - 0.5) * grainAmount * 50;
+                    data[i] += noise;
+                    data[i + 1] += noise;
+                    data[i + 2] += noise;
+                }
+            }
+            
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            // Применяем эффекты через CSS фильтры
+            let filterString = '';
+            
+            if (layer.blur > 0) {
+                filterString += `blur(${layer.blur}px) `;
+            }
+            
+            if (layer.sharpness > 0) {
+                const sharpAmount = 1 + (layer.sharpness / 50);
+                filterString += `contrast(${sharpAmount}) `;
+            }
+            
+            return tempCanvas;
+        }
+
+        // Вспомогательные функции для конвертации цветов
+        function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0;
+            } else {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+                    case g: h = ((b - r) / d + 2) / 6; break;
+                    case b: h = ((r - g) / d + 4) / 6; break;
+                }
+            }
+            return [h, s, l];
+        }
+
+        function hslToRgb(h, s, l) {
+            let r, g, b;
+
+            if (s === 0) {
+                r = g = b = l;
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                    return p;
+                };
+
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1/3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1/3);
+            }
+
+            return [r * 255, g * 255, b * 255];
+        }
+
+        // ===== ПРЕСЕТЫ ФИЛЬТРОВ =====
+        function applyPreset(preset) {
+            const layer = layers[activeLayer];
+            
+            switch(preset) {
+                case 'none':
+                    layer.brightness = 0;
+                    layer.contrast = 0;
+                    layer.saturation = 0;
+                    layer.temperature = 0;
+                    layer.hue = 0;
+                    break;
+                case 'bw':
+                    layer.saturation = -100;
+                    layer.contrast = 20;
+                    break;
+                case 'sepia':
+                    layer.saturation = -50;
+                    layer.temperature = 40;
+                    layer.contrast = 10;
+                    break;
+                case 'warm':
+                    layer.temperature = 30;
+                    layer.brightness = 10;
+                    break;
+                case 'cold':
+                    layer.temperature = -30;
+                    layer.contrast = 10;
+                    break;
+                case 'vintage':
+                    layer.saturation = -30;
+                    layer.temperature = 20;
+                    layer.contrast = -10;
+                    layer.brightness = -5;
+                    break;
+            }
+            
+            updateControls();
+            render();
+            showHint(`Пресет: ${preset}`);
+        }
+
+        // ===== ПРЕСЕТЫ ЭФФЕКТОВ =====
+        function applyEffect(effect) {
+            const layer = layers[activeLayer];
+            
+            switch(effect) {
+                case 'none':
+                    layer.blur = 0;
+                    layer.sharpness = 0;
+                    layer.vignette = 0;
+                    layer.hdr = 0;
+                    layer.grain = 0;
+                    break;
+                case 'soft':
+                    layer.blur = 1;
+                    layer.vignette = 20;
+                    layer.brightness = 5;
+                    break;
+                case 'dramatic':
+                    layer.contrast = 40;
+                    layer.saturation = 20;
+                    layer.vignette = 50;
+                    layer.hdr = 60;
+                    break;
+                case 'dreamy':
+                    layer.blur = 2;
+                    layer.brightness = 15;
+                    layer.saturation = -20;
+                    layer.vignette = 30;
+                    break;
+                case 'gritty':
+                    layer.grain = 40;
+                    layer.contrast = 30;
+                    layer.saturation = -20;
+                    layer.sharpness = 30;
+                    break;
+                case 'cinema':
+                    layer.vignette = 40;
+                    layer.contrast = 20;
+                    layer.saturation = 10;
+                    layer.hdr = 30;
+                    break;
+            }
+            
+            updateControls();
+            render();
+            showHint(`Эффект: ${effect}`);
+        }
+
+        // ===== МАСШТАБИРОВАНИЕ CANVAS =====
+        function zoomCanvasBy(delta) {
+            canvasZoom = Math.max(0.25, Math.min(3, canvasZoom + delta));
+            applyCanvasZoom();
+        }
+
+        function resetCanvasZoom() {
+            canvasZoom = 1;
+            applyCanvasZoom();
+        }
+
+        function applyCanvasZoom() {
+            document.documentElement.style.setProperty('--canvas-zoom', canvasZoom);
+            const percentage = Math.round(canvasZoom * 100);
+            document.getElementById('canvasZoomIndicator').textContent = `Canvas: ${percentage}%`;
+            document.getElementById('bottomCanvasZoom').textContent = `${percentage}%`;
+        }
+
+        canvasWrapper.addEventListener('wheel', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                zoomCanvasBy(delta);
+            }
+        }, { passive: false });
+
+        let canvasPinchDistance = 0;
+        let isCanvasPinching = false;
+
+        canvasWrapper.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                isCanvasPinching = true;
+                canvasPinchDistance = getDistance(e.touches[0], e.touches[1]);
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        canvasWrapper.addEventListener('touchmove', (e) => {
+            if (isCanvasPinching && e.touches.length === 2) {
+                e.preventDefault();
+                const distance = getDistance(e.touches[0], e.touches[1]);
+                const delta = (distance - canvasPinchDistance) / 300;
+                zoomCanvasBy(delta);
+                canvasPinchDistance = distance;
+            }
+        }, { passive: false });
+
+        canvasWrapper.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                isCanvasPinching = false;
+            }
+        });
+
+        function centerCanvas() {
+            const wrapper = canvasWrapper;
+            wrapper.scrollLeft = (wrapper.scrollWidth - wrapper.clientWidth) / 2;
+            wrapper.scrollTop = (wrapper.scrollHeight - wrapper.clientHeight) / 2;
+            showHint('Холст отцентрирован');
+        }
+
+        function zoomUI(delta) {
+            uiScale = Math.max(0.5, Math.min(2, uiScale + delta));
+            applyUIScale();
+        }
+
+        function applyUIScale() {
+            document.documentElement.style.setProperty('--ui-scale', uiScale);
+            document.getElementById('uiZoomDisplay').textContent = Math.round(uiScale * 100) + '%';
+            
+            const mainContainer = document.getElementById('mainContainer');
+            mainContainer.style.width = (100 / uiScale) + 'vw';
+            mainContainer.style.height = (100 / uiScale) + 'vh';
+            
+            const indicator = document.getElementById('scaleIndicator');
+            indicator.textContent = `UI: ${Math.round(uiScale * 100)}%`;
+            indicator.classList.add('visible');
+            setTimeout(() => {
+                indicator.classList.remove('visible');
+            }, 1500);
+        }
+
+        let lastDistance = 0;
+        let isPinching = false;
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && !canvasWrapper.contains(e.target)) {
+                isPinching = true;
+                lastDistance = getDistance(e.touches[0], e.touches[1]);
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (isPinching && e.touches.length === 2) {
+                e.preventDefault();
+                const distance = getDistance(e.touches[0], e.touches[1]);
+                const delta = (distance - lastDistance) / 200;
+                zoomUI(delta);
+                lastDistance = distance;
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                isPinching = false;
+            }
+        });
+
+        function getDistance(touch1, touch2) {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('sidebarResizer');
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = parseInt(getComputedStyle(sidebar).width) * uiScale;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        resizer.addEventListener('touchstart', (e) => {
+            isResizing = true;
+            startX = e.touches[0].clientX;
+            startWidth = parseInt(getComputedStyle(sidebar).width) * uiScale;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isResizing) {
+                const delta = e.clientX - startX;
+                const newWidth = Math.max(250, Math.min(500, startWidth + delta));
+                document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (isResizing) {
+                const delta = e.touches[0].clientX - startX;
+                const newWidth = Math.max(250, Math.min(500, startWidth + delta));
+                document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            isResizing = false;
+        });
+
+        function initUpload(layerNum) {
+            const card = document.getElementById(`layer${layerNum}Card`);
+            const input = document.getElementById(`file${layerNum}`);
+            const preview = document.getElementById(`preview${layerNum}`);
+
+            card.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('layer-control-btn')) {
+                    input.click();
+                }
+            });
+
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            layers[layerNum].image = img;
+                            preview.src = e.target.result;
+                            preview.style.display = 'block';
+                            card.classList.add('has-image');
+                            card.querySelector('.upload-placeholder').style.display = 'none';
+                            
+                            selectLayer(layerNum);
+                            updateCanvasOverlay();
+                            render();
+                            showHint('Фото загружено');
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            card.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                card.style.borderColor = '#0078d4';
+            });
+
+            card.addEventListener('dragleave', () => {
+                card.style.borderColor = '';
+            });
+
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                card.style.borderColor = '';
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                    input.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        initUpload(1);
+        initUpload(2);
+
+        function selectLayer(num) {
+            if (!layers[num].image) return;
+            
+            activeLayer = num;
+            
+            document.querySelectorAll('.upload-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.getElementById(`layer${num}Card`).classList.add('active');
+            
+            document.getElementById('activeLayerNum').textContent = num;
+            document.getElementById('activeLayerNum2').textContent = num;
+            document.getElementById('activeLayerNum3').textContent = num;
+            document.getElementById('bottomLayerNum').textContent = num;
+            
+            updateControls();
+            updateBlendModeDisplay();
+        }
+
+        function removeLayer(num) {
+            layers[num].image = null;
+            const card = document.getElementById(`layer${num}Card`);
+            const preview = document.getElementById(`preview${num}`);
+            const input = document.getElementById(`file${num}`);
+            
+            card.classList.remove('has-image', 'active');
+            preview.style.display = 'none';
+            card.querySelector('.upload-placeholder').style.display = 'block';
+            input.value = '';
+            
+            layers[num] = { 
+                image: null, 
+                x: num === 1 ? 200 : 400, 
+                y: num === 1 ? 150 : 250, 
+                scale: 1, 
+                rotation: 0, 
+                opacity: 1, 
+                blendMode: 'source-over', 
+                flipX: false,
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                temperature: 0,
+                hue: 0,
+                blur: 0,
+                sharpness: 0,
+                vignette: 0,
+                hdr: 0,
+                grain: 0
+            };
+            
+            updateCanvasOverlay();
+            render();
+            showHint('Удалено');
+        }
+
+        function updateControls() {
+            const layer = layers[activeLayer];
+            
+            // Базовые
+            document.getElementById('opacity').value = layer.opacity * 100;
+            document.getElementById('scale').value = layer.scale * 100;
+            document.getElementById('rotate').value = layer.rotation;
+            document.getElementById('posX').value = layer.x;
+            document.getElementById('posY').value = layer.y;
+            
+            // Фильтры
+            document.getElementById('brightness').value = layer.brightness;
+            document.getElementById('contrast').value = layer.contrast;
+            document.getElementById('saturation').value = layer.saturation;
+            document.getElementById('temperature').value = layer.temperature;
+            document.getElementById('hue').value = layer.hue;
+            
+            // Эффекты
+            document.getElementById('blur').value = layer.blur;
+            document.getElementById('sharpness').value = layer.sharpness;
+            document.getElementById('vignette').value = layer.vignette;
+            document.getElementById('hdr').value = layer.hdr;
+            document.getElementById('grain').value = layer.grain;
+            
+            updateValues();
+            updateBlendModeButtons();
+        }
+
+        function updateBlendModeButtons() {
+            const layer = layers[activeLayer];
+            
+            document.querySelectorAll('.blend-btn').forEach(btn => {
+                if (btn.dataset.blend === layer.blendMode) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            updateBlendModeDisplay();
+        }
+
+        function updateBlendModeDisplay() {
+            const layer = layers[activeLayer];
+            const modeName = blendModeNames[layer.blendMode] || 'Обычный';
+            document.getElementById('currentBlendMode').textContent = modeName;
+        }
+
+        function updateValues() {
+            const layer = layers[activeLayer];
+            
+            // Базовые
+            document.getElementById('opacityVal').textContent = Math.round(layer.opacity * 100) + '%';
+            document.getElementById('scaleVal').textContent = Math.round(layer.scale * 100) + '%';
+            document.getElementById('rotateVal').textContent = Math.round(layer.rotation) + '°';
+            document.getElementById('xVal').textContent = Math.round(layer.x);
+            document.getElementById('yVal').textContent = Math.round(layer.y);
+            
+            // Фильтры
+            document.getElementById('brightnessVal').textContent = layer.brightness;
+            document.getElementById('contrastVal').textContent = layer.contrast;
+            document.getElementById('saturationVal').textContent = layer.saturation;
+            document.getElementById('temperatureVal').textContent = layer.temperature;
+            document.getElementById('hueVal').textContent = layer.hue + '°';
+            
+            // Эффекты
+            document.getElementById('blurVal').textContent = layer.blur;
+            document.getElementById('sharpnessVal').textContent = layer.sharpness;
+            document.getElementById('vignetteVal').textContent = layer.vignette;
+            document.getElementById('hdrVal').textContent = layer.hdr;
+            document.getElementById('grainVal').textContent = layer.grain;
+        }
+
+        function updateCanvasOverlay() {
+            const hasImages = layers[1].image || layers[2].image;
+            document.getElementById('canvasOverlay').classList.toggle('hidden', hasImages);
+        }
+
+        function initSlider(sliderId, callback) {
+            const slider = document.getElementById(sliderId);
+            let isDraggingSlider = false;
+
+            slider.addEventListener('mousedown', (e) => {
+                const rect = slider.getBoundingClientRect();
+                const clickPos = (e.clientX - rect.left) / rect.width;
+                const sliderValue = (slider.value - slider.min) / (slider.max - slider.min);
+                
+                if (Math.abs(clickPos - sliderValue) < 0.05) {
+                    isDraggingSlider = true;
+                } else {
+                    e.preventDefault();
+                }
+            });
+
+            slider.addEventListener('touchstart', () => {
+                isDraggingSlider = true;
+            });
+
+            slider.addEventListener('input', (e) => {
+                if (isDraggingSlider) {
+                    callback(e);
+                }
+            });
+
+            slider.addEventListener('change', (e) => {
+                if (isDraggingSlider) {
+                    callback(e);
+                }
+            });
+
+            slider.addEventListener('mouseup', () => {
+                isDraggingSlider = false;
+            });
+
+            slider.addEventListener('touchend', () => {
+                isDraggingSlider = false;
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDraggingSlider = false;
+            });
+        }
+
+        // Инициализация ползунков - Базовые
+        initSlider('opacity', function() {
+            layers[activeLayer].opacity = document.getElementById('opacity').value / 100;
+            updateValues();
+            render();
+        });
+
+        initSlider('scale', function() {
+            layers[activeLayer].scale = document.getElementById('scale').value / 100;
+            updateValues();
+            render();
+        });
+
+        initSlider('rotate', function() {
+            layers[activeLayer].rotation = parseFloat(document.getElementById('rotate').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('posX', function() {
+            layers[activeLayer].x = parseFloat(document.getElementById('posX').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('posY', function() {
+            layers[activeLayer].y = parseFloat(document.getElementById('posY').value);
+            updateValues();
+            render();
+        });
+
+        // Инициализация ползунков - Фильтры
+        initSlider('brightness', function() {
+            layers[activeLayer].brightness = parseFloat(document.getElementById('brightness').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('contrast', function() {
+            layers[activeLayer].contrast = parseFloat(document.getElementById('contrast').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('saturation', function() {
+            layers[activeLayer].saturation = parseFloat(document.getElementById('saturation').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('temperature', function() {
+            layers[activeLayer].temperature = parseFloat(document.getElementById('temperature').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('hue', function() {
+            layers[activeLayer].hue = parseFloat(document.getElementById('hue').value);
+            updateValues();
+            render();
+        });
+
+        // Инициализация ползунков - Эффекты
+        initSlider('blur', function() {
+            layers[activeLayer].blur = parseFloat(document.getElementById('blur').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('sharpness', function() {
+            layers[activeLayer].sharpness = parseFloat(document.getElementById('sharpness').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('vignette', function() {
+            layers[activeLayer].vignette = parseFloat(document.getElementById('vignette').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('hdr', function() {
+            layers[activeLayer].hdr = parseFloat(document.getElementById('hdr').value);
+            updateValues();
+            render();
+        });
+
+        initSlider('grain', function() {
+            layers[activeLayer].grain = parseFloat(document.getElementById('grain').value);
+            updateValues();
+            render();
+        });
+
+        function setBlendMode(mode) {
+            layers[activeLayer].blendMode = mode;
+            updateBlendModeButtons();
+            render();
+            showHint(blendModeNames[mode]);
+        }
+
+        document.querySelectorAll('.blend-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const mode = this.dataset.blend;
+                setBlendMode(mode);
+            });
+        });
+
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            return {
+                x: x * (canvas.width / rect.width),
+                y: y * (canvas.height / rect.height)
+            };
+        }
+
+        canvas.addEventListener('mousedown', startDrag);
+        canvas.addEventListener('touchstart', startDrag);
+
+        function startDrag(e) {
+            if (!layers[activeLayer].image) return;
+            if (e.touches && e.touches.length > 1) return;
+            e.preventDefault();
+            
+            const coords = getCoords(e);
+            isDragging = true;
+            const layer = layers[activeLayer];
+            dragStartX = coords.x - layer.x;
+            dragStartY = coords.y - layer.y;
+        }
+
+        canvas.addEventListener('mousemove', drag);
+        canvas.addEventListener('touchmove', drag);
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                const coords = getCoords(e);
+                
+                layers[activeLayer].x = coords.x - dragStartX;
+                layers[activeLayer].y = coords.y - dragStartY;
+                
+                updateControls();
+                render();
+            }
+        }
+
+        canvas.addEventListener('mouseup', endDrag);
+        canvas.addEventListener('touchend', endDrag);
+        canvas.addEventListener('mouseleave', endDrag);
+
+        function endDrag() {
+            isDragging = false;
+        }
+
+        // ===== РЕНДЕРИНГ С ФИЛЬТРАМИ =====
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            [1, 2].forEach(num => {
+                const layer = layers[num];
+                if (layer.image) {
+                    drawLayer(layer);
+                }
+            });
+        }
+
+        function drawLayer(layer) {
+            ctx.save();
+            
+            // Применяем режим наложения и прозрачность
+            ctx.globalAlpha = layer.opacity;
+            ctx.globalCompositeOperation = layer.blendMode;
+            
+            const width = layer.image.width * layer.scale;
+            const height = layer.image.height * layer.scale;
+            
+            // Трансформации
+            ctx.translate(layer.x + width / 2, layer.y + height / 2);
+            ctx.rotate(layer.rotation * Math.PI / 180);
+            if (layer.flipX) ctx.scale(-1, 1);
+            ctx.translate(-(layer.x + width / 2), -(layer.y + height / 2));
+            
+            // Применяем фильтры
+            const filteredImage = applyFiltersToImage(layer);
+            
+            // CSS фильтры для blur
+            if (layer.blur > 0) {
+                ctx.filter = `blur(${layer.blur}px)`;
+            }
+            
+            // Рисуем изображение с фильтрами
+            ctx.drawImage(filteredImage, layer.x, layer.y, width, height);
+            
+            // Виньетирование
+            if (layer.vignette > 0) {
+                const centerX = layer.x + width / 2;
+                const centerY = layer.y + height / 2;
+                const radius = Math.max(width, height);
+                const vignetteStrength = layer.vignette / 100;
+                
+                const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+                gradient.addColorStop(0, 'rgba(0,0,0,0)');
+                gradient.addColorStop(0.7, 'rgba(0,0,0,0)');
+                gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(layer.x, layer.y, width, height);
+            }
+            
+            ctx.restore();
+            ctx.filter = 'none';
+        }
+
+        function centerLayer() {
+            const layer = layers[activeLayer];
+            if (!layer.image) return;
+            
+            const width = layer.image.width * layer.scale;
+            const height = layer.image.height * layer.scale;
+            layer.x = (canvas.width - width) / 2;
+            layer.y = (canvas.height - height) / 2;
+            
+            updateControls();
+            render();
+            showHint('Слой отцентрирован');
+        }
+
+        function resetLayer() {
+            const layer = layers[activeLayer];
+            if (!layer.image) return;
+            
+            const img = layer.image;
+            layers[activeLayer] = {
+                image: img,
+                x: activeLayer === 1 ? 200 : 400,
+                y: activeLayer === 1 ? 150 : 250,
+                scale: 1,
+                rotation: 0,
+                opacity: 1,
+                blendMode: 'source-over',
+                flipX: false,
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                temperature: 0,
+                hue: 0,
+                blur: 0,
+                sharpness: 0,
+                vignette: 0,
+                hdr: 0,
+                grain: 0
+            };
+            
+            updateControls();
+            render();
+            showHint('Сброшено');
+        }
+
+        function flipH() {
+            const layer = layers[activeLayer];
+            if (!layer.image) return;
+            layer.flipX = !layer.flipX;
+            render();
+            showHint('Отражено');
+        }
+
+        function swapLayers() {
+            [layers[1], layers[2]] = [layers[2], layers[1]];
+            
+            const prev1 = document.getElementById('preview1');
+            const prev2 = document.getElementById('preview2');
+            const temp = prev1.src;
+            prev1.src = prev2.src;
+            prev2.src = temp;
+            
+            const card1 = document.getElementById('layer1Card');
+            const card2 = document.getElementById('layer2Card');
+            const hasImg1 = card1.classList.contains('has-image');
+            const hasImg2 = card2.classList.contains('has-image');
+            
+            card1.classList.toggle('has-image', hasImg2);
+            card2.classList.toggle('has-image', hasImg1);
+            
+            if (hasImg2) {
+                prev1.style.display = 'block';
+                card1.querySelector('.upload-placeholder').style.display = 'none';
+            } else {
+                prev1.style.display = 'none';
+                card1.querySelector('.upload-placeholder').style.display = 'block';
+            }
+            
+            if (hasImg1) {
+                prev2.style.display = 'block';
+                card2.querySelector('.upload-placeholder').style.display = 'none';
+            } else {
+                prev2.style.display = 'none';
+                card2.querySelector('.upload-placeholder').style.display = 'block';
+            }
+            
+            updateControls();
+            render();
+            showHint('Поменяны');
+        }
+
+        function fitCanvas() {
+            const layer = layers[activeLayer];
+            if (!layer.image) return;
+            
+            const scaleX = canvas.width / layer.image.width;
+            const scaleY = canvas.height / layer.image.height;
+            layer.scale = Math.min(scaleX, scaleY) * 0.95;
+            
+            centerLayer();
+        }
+
+        function downloadImage() {
+            if (!layers[1].image && !layers[2].image) {
+                showHint('Загрузите фото!');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = `merged-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+            link.click();
+            
+            showHint('✅ Сохранено!');
+        }
+
+        function resetAll() {
+            if (confirm('Удалить всё?')) {
+                [1, 2].forEach(num => removeLayer(num));
+                showHint('Удалено');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('toggleIcon');
+            sidebar.classList.toggle('collapsed');
+            icon.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        }
+
+        let hintTimeout;
+        function showHint(text) {
+            const hint = document.getElementById('hint');
+            hint.textContent = text;
+            hint.classList.remove('hidden');
+            
+            clearTimeout(hintTimeout);
+            hintTimeout = setTimeout(() => {
+                hint.classList.add('hidden');
+            }, 2000);
+        }
+
+        updateCanvasOverlay();
+        selectLayer(1);
+        
+        setTimeout(() => {
+            centerCanvas();
+            applyCanvasZoom();
+            document.getElementById('hint').classList.add('hidden');
+        }, 100);
+    </script>
+</body>
+</html>
