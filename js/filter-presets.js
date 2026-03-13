@@ -2,7 +2,8 @@
 
 // ===== ПРЕСЕТЫ ФИЛЬТРОВ =====
 function applyPreset(preset) {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     
     switch(preset) {
         case 'none':
@@ -44,7 +45,8 @@ function applyPreset(preset) {
 
 // ===== ПРЕСЕТЫ ЭФФЕКТОВ =====
 function applyEffect(effect) {
-    const layer = layers[activeLayer];
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
     
     switch(effect) {
         case 'none':

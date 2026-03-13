@@ -1006,3 +1006,228 @@ input[type="range"]::-moz-range-thumb {
     border-color: white;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
 }
+
+/* ===== ПАНЕЛЬ УПРАВЛЕНИЯ СЛОЯМИ ===== */
+
+.layers-panel {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.layers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.layers-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.add-layer-btn {
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-layer-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.add-layer-btn:disabled {
+    cursor: not-allowed;
+}
+
+.layers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Элемент слоя */
+.layer-item {
+    display: grid;
+    grid-template-columns: 52px 1fr auto;
+    gap: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.layer-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.layer-item.active {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: #667eea;
+}
+
+.layer-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #667eea;
+    border-radius: 8px 0 0 8px;
+}
+
+.layer-item.layer-hidden {
+    opacity: 0.5;
+}
+
+.layer-item.layer-locked {
+    cursor: not-allowed;
+}
+
+/* Превью слоя */
+.layer-preview {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.layer-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.layer-placeholder {
+    font-size: 1.4rem;
+}
+
+.layer-placeholder-icon {
+    font-size: 1.4rem;
+}
+
+/* Информация о слое */
+.layer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    justify-content: center;
+}
+
+.layer-name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: white;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 3px 4px;
+    border-radius: 4px;
+    outline: none;
+    width: 100%;
+}
+
+.layer-name-input:hover,
+.layer-name-input:focus {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.layer-stats {
+    display: flex;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Действия со слоем */
+.layer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: center;
+    justify-content: flex-end;
+    max-width: 80px;
+}
+
+.layer-action-btn {
+    padding: 4px 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: white;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.layer-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.layer-action-btn.danger:hover {
+    background: rgba(255, 59, 48, 0.4);
+}
+
+.layer-action-btn.primary {
+    background: rgba(102, 126, 234, 0.3);
+}
+
+.layer-action-btn.primary:hover {
+    background: rgba(102, 126, 234, 0.5);
+}
+
+.layer-file-input {
+    display: none;
+}
+
+/* Кнопки ориентации активного слоя */
+.layer-orientation-btn {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.layer-orientation-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.layer-orientation-btn.active {
+    background: rgba(102, 126, 234, 0.4);
+    border-color: #667eea;
+    color: white;
+}

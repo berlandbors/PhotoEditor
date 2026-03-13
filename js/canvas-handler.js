@@ -254,23 +254,32 @@ function hslToRgb(h, s, l) {
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const layer1 = layers[1];
-    const layer2 = layers[2];
+    // Track whether any content has been drawn (needed for canvas blending)
+    let canvasHasContent = false;
 
-    // Если второй слой использует попиксельное смешивание —
-    // оба слоя объединяются в applyCanvasBlending, рисуем сразу результат
-    if (layer2.image && layer2.blendMode.startsWith('canvas-')) {
-        applyCanvasBlending(layer1, layer2);
-        return;
+    // Отрисовываем слои в порядке от последнего к первому (снизу вверх)
+    for (let i = layers.length - 1; i >= 0; i--) {
+        const layer = layers[i];
+
+        // Пропускаем невидимые слои или слои без изображения
+        if (!layer.visible || !layer.image) continue;
+
+        // Если слой использует попиксельное смешивание и есть что смешивать —
+        // применяем попиксельный алгоритм поверх текущего состояния canvas
+        if (layer.blendMode.startsWith('canvas-') && canvasHasContent) {
+            const currentState = document.createElement('canvas');
+            currentState.width = canvas.width;
+            currentState.height = canvas.height;
+            currentState.getContext('2d').drawImage(canvas, 0, 0);
+            applyCanvasBlendingToState(currentState, layer);
+        } else {
+            drawLayer(layer);
+        }
+
+        canvasHasContent = true;
     }
 
-    // Стандартный рендеринг: CSS режимы наложения через globalCompositeOperation
-    if (layer1.image) {
-        drawLayer(layer1);
-    }
-    if (layer2.image) {
-        drawLayer(layer2);
-    }
+    updateCanvasOverlay();
 }
 
 /**
@@ -341,6 +350,23 @@ function applyCanvasBlending(layer1, layer2) {
     ctx.drawImage(resultCanvas, 0, 0);
 }
 
+/**
+ * Применить попиксельное смешивание слоя с текущим состоянием canvas.
+ * @param {HTMLCanvasElement} stateCanvas — текущее состояние
+ * @param {object} layer — верхний слой (содержит canvas-режим смешивания)
+ */
+function applyCanvasBlendingToState(stateCanvas, layer) {
+    const mode = layer.blendMode.replace('canvas-', '');
+    const tempCanvas = createTempCanvas(layer);
+
+    const resultCanvas = window.BlendingEngine.blendImages(
+        stateCanvas, tempCanvas, mode, layer.opacity
+    );
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(resultCanvas, 0, 0);
+}
+
 function drawLayer(layer) {
     ctx.save();
     
@@ -407,13 +433,14 @@ function getCoords(e) {
 }
 
 function startDrag(e) {
-    if (!layers[activeLayer].image) return;
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex] || !layers[activeLayerIndex].image) return;
+    if (layers[activeLayerIndex].locked) return;
     if (e.touches && e.touches.length > 1) return;
     e.preventDefault();
     
     const coords = getCoords(e);
     isDragging = true;
-    const layer = layers[activeLayer];
+    const layer = layers[activeLayerIndex];
     dragStartX = coords.x - layer.x;
     dragStartY = coords.y - layer.y;
 }
@@ -423,8 +450,8 @@ function drag(e) {
         e.preventDefault();
         const coords = getCoords(e);
         
-        layers[activeLayer].x = coords.x - dragStartX;
-        layers[activeLayer].y = coords.y - dragStartY;
+        layers[activeLayerIndex].x = coords.x - dragStartX;
+        layers[activeLayerIndex].y = coords.y - dragStartY;
         
         updateControls();
         render();
@@ -450,7 +477,7 @@ function initCanvasHandlers() {
 
 function setCanvasOrientation(orientation) {
     canvasOrientation = orientation;
-    document.querySelectorAll('.orientation-btn').forEach(btn => {
+    document.querySelectorAll('.canvas-orientation-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.orientation === orientation);
     });
     updateCanvasSize();
@@ -471,8 +498,7 @@ function updateCanvasSize() {
 
 function calculateAutoCanvasSize() {
     let maxW = 1400, maxH = 900;
-    [1, 2].forEach(n => {
-        const l = layers[n];
+    layers.forEach(l => {
         if (l.image) {
             maxW = Math.max(maxW, l.x + l.image.width * l.scale + 100);
             maxH = Math.max(maxH, l.y + l.image.height * l.scale + 100);

@@ -23,39 +23,58 @@
             </div>
             
             <div class="sidebar-content">
-                <div class="upload-section">
-                    <div class="upload-title">Слой 1</div>
-                    <div class="upload-card" id="layer1Card" data-layer="1">
-                        <div class="active-layer-badge">Активен</div>
-                        <input type="file" id="file1" accept="image/*">
-                        <div class="upload-placeholder">
-                            <div class="upload-placeholder-icon">📷</div>
-                            <div class="upload-placeholder-text">Загрузить</div>
-                        </div>
-                        <img id="preview1" class="upload-preview" style="display:none;">
-                        <div class="layer-controls">
-                            <button class="layer-control-btn" onclick="selectLayer(1)">Выбрать</button>
-                            <button class="layer-control-btn" onclick="removeLayer(1)">✕</button>
-                        </div>
+                <!-- Панель управления слоями -->
+                <div class="layers-panel">
+                    <div class="layers-header">
+                        <span class="layers-title">📚 Слои (<span id="layerCount">0</span>/<span id="maxLayers">5</span>)</span>
+                        <button class="add-layer-btn" id="addLayerBtn" onclick="addNewLayer()" title="Добавить слой">
+                            ➕ Добавить
+                        </button>
+                    </div>
+
+                    <div class="layers-list" id="layersList">
+                        <!-- Слои добавляются динамически -->
                     </div>
                 </div>
 
-                <div class="upload-section">
-                    <div class="upload-title">Слой 2</div>
-                    <div class="upload-card" id="layer2Card" data-layer="2">
-                        <div class="active-layer-badge">Активен</div>
-                        <input type="file" id="file2" accept="image/*">
-                        <div class="upload-placeholder">
-                            <div class="upload-placeholder-icon">📷</div>
-                            <div class="upload-placeholder-text">Загрузить</div>
+                <!-- Шаблон для слоя (скрытый) -->
+                <template id="layerTemplate">
+                    <div class="layer-item" data-layer-id="">
+                        <div class="layer-preview">
+                            <img class="layer-thumbnail" src="" alt="Превью">
+                            <div class="layer-placeholder">
+                                <span class="layer-placeholder-icon">📷</span>
+                            </div>
                         </div>
-                        <img id="preview2" class="upload-preview" style="display:none;">
-                        <div class="layer-controls">
-                            <button class="layer-control-btn" onclick="selectLayer(2)">Выбрать</button>
-                            <button class="layer-control-btn" onclick="removeLayer(2)">✕</button>
+
+                        <div class="layer-info">
+                            <input type="text" class="layer-name-input" value="Слой 1"
+                                   onchange="renameLayer(this)">
+                            <div class="layer-stats">
+                                <span class="layer-size">—</span>
+                            </div>
+                        </div>
+
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" onclick="toggleLayerVisibility(this)"
+                                    title="Показать/Скрыть">👁️</button>
+                            <button class="layer-action-btn" onclick="toggleLayerLock(this)"
+                                    title="Заблокировать/Разблокировать">🔓</button>
+                            <button class="layer-action-btn" onclick="duplicateLayer(this)"
+                                    title="Дублировать">📋</button>
+                            <button class="layer-action-btn" onclick="moveLayerUp(this)"
+                                    title="Вверх">⬆️</button>
+                            <button class="layer-action-btn" onclick="moveLayerDown(this)"
+                                    title="Вниз">⬇️</button>
+                            <button class="layer-action-btn danger" onclick="deleteLayer(this)"
+                                    title="Удалить">🗑️</button>
+                            <input type="file" class="layer-file-input" accept="image/*"
+                                   onchange="loadImageToLayer(this)">
+                            <button class="layer-action-btn primary" onclick="openFileDialog(this)"
+                                    title="Загрузить изображение">📁</button>
                         </div>
                     </div>
-                </div>
+                </template>
 
                 <!-- Табы для переключения -->
                 <div class="layer-tabs">
@@ -140,30 +159,18 @@
                         <button class="quick-btn" onclick="centerLayer()">🎯 Центр</button>
                         <button class="quick-btn" onclick="resetLayer()">↺ Сброс</button>
                         <button class="quick-btn" onclick="flipH()">↔️ Отразить</button>
-                        <button class="quick-btn" onclick="swapLayers()">🔄 Поменять</button>
+                        <button class="quick-btn" onclick="fitCanvas()">📐 Вписать</button>
                     </div>
 
                     <div class="param-group">
                         <div class="param-label">
-                            <span>📐 Ориентация (Слой 1)</span>
-                            <span class="param-value" id="orientation1Val">Авто</span>
+                            <span>📐 Ориентация активного слоя</span>
+                            <span class="param-value" id="orientationVal">Авто</span>
                         </div>
                         <div class="orientation-buttons">
-                            <button class="orientation-btn active" data-orientation="auto" data-layer="1" title="Без изменений">🔄 Авто</button>
-                            <button class="orientation-btn" data-orientation="landscape" data-layer="1" title="Альбомная (горизонтальная)">📐 Альбомная</button>
-                            <button class="orientation-btn" data-orientation="portrait" data-layer="1" title="Книжная (вертикальная)">📱 Книжная</button>
-                        </div>
-                    </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>📐 Ориентация (Слой 2)</span>
-                            <span class="param-value" id="orientation2Val">Авто</span>
-                        </div>
-                        <div class="orientation-buttons">
-                            <button class="orientation-btn active" data-orientation="auto" data-layer="2" title="Без изменений">🔄 Авто</button>
-                            <button class="orientation-btn" data-orientation="landscape" data-layer="2" title="Альбомная (горизонтальная)">📐 Альбомная</button>
-                            <button class="orientation-btn" data-orientation="portrait" data-layer="2" title="Книжная (вертикальная)">📱 Книжная</button>
+                            <button class="layer-orientation-btn active" data-orientation="auto" title="Без изменений">🔄 Авто</button>
+                            <button class="layer-orientation-btn" data-orientation="landscape" title="Альбомная (горизонтальная)">📐 Альбомная</button>
+                            <button class="layer-orientation-btn" data-orientation="portrait" title="Книжная (вертикальная)">📱 Книжная</button>
                         </div>
                     </div>
                 </div>
@@ -494,11 +501,8 @@
         <main class="workspace">
             <div class="toolbar">
                 <div class="toolbar-group">
-                    <button class="toolbar-btn" onclick="document.getElementById('file1').click()">
-                        <span class="emoji">📁</span> <span>Загрузить 1</span>
-                    </button>
-                    <button class="toolbar-btn" onclick="document.getElementById('file2').click()">
-                        <span class="emoji">📁</span> <span>Загрузить 2</span>
+                    <button class="toolbar-btn" onclick="addNewLayer()">
+                        <span class="emoji">➕</span> <span>Добавить слой</span>
                     </button>
                 </div>
 
@@ -513,10 +517,10 @@
                 <div class="toolbar-divider"></div>
 
                 <div class="toolbar-group">
-                    <button class="toolbar-btn orientation-btn active" data-orientation="auto" onclick="setCanvasOrientation('auto')">🔄 Авто</button>
-                    <button class="toolbar-btn orientation-btn" data-orientation="landscape" onclick="setCanvasOrientation('landscape')">📐 Альбомная</button>
-                    <button class="toolbar-btn orientation-btn" data-orientation="portrait" onclick="setCanvasOrientation('portrait')">📱 Книжная</button>
-                    <button class="toolbar-btn orientation-btn" data-orientation="square" onclick="setCanvasOrientation('square')">⬜ Квадрат</button>
+                    <button class="toolbar-btn canvas-orientation-btn active" data-orientation="auto" onclick="setCanvasOrientation('auto')">🔄 Авто</button>
+                    <button class="toolbar-btn canvas-orientation-btn" data-orientation="landscape" onclick="setCanvasOrientation('landscape')">📐 Альбомная</button>
+                    <button class="toolbar-btn canvas-orientation-btn" data-orientation="portrait" onclick="setCanvasOrientation('portrait')">📱 Книжная</button>
+                    <button class="toolbar-btn canvas-orientation-btn" data-orientation="square" onclick="setCanvasOrientation('square')">⬜ Квадрат</button>
                 </div>
 
                 <div class="toolbar-divider"></div>
