@@ -70,6 +70,7 @@ function selectLayer(num) {
     document.getElementById('activeLayerNum').textContent = num;
     document.getElementById('activeLayerNum2').textContent = num;
     document.getElementById('activeLayerNum3').textContent = num;
+    document.getElementById('activeLayerNum4').textContent = num;
     document.getElementById('bottomLayerNum').textContent = num;
     
     updateControls();
@@ -106,7 +107,8 @@ function removeLayer(num) {
         sharpness: 0,
         vignette: 0,
         hdr: 0,
-        grain: 0
+        grain: 0,
+        colorMask: null
     };
     
     // Сбросить кнопки ориентации для этого слоя
@@ -119,6 +121,21 @@ function removeLayer(num) {
     updateCanvasOverlay();
     render();
     showHint('Удалено');
+}
+
+// Сбросить UI цветовой маски к значениям по умолчанию
+function resetColorMaskUI() {
+    selectedColorRange = null;
+    document.querySelectorAll('.color-range-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.getElementById('colorMaskControls').style.display = 'none';
+    document.getElementById('tolerance').value = DEFAULT_TOLERANCE;
+    document.getElementById('maskBrightness').value = 0;
+    document.getElementById('maskSaturation').value = 0;
+    document.getElementById('maskHue').value = 0;
+    document.getElementById('toleranceVal').textContent = DEFAULT_TOLERANCE;
+    document.getElementById('maskBrightnessVal').textContent = 0;
+    document.getElementById('maskSaturationVal').textContent = 0;
+    document.getElementById('maskHueVal').textContent = 0;
 }
 
 function updateControls() {
@@ -155,6 +172,25 @@ function updateControls() {
     const valElement = document.getElementById(`orientation${activeLayer}Val`);
     if (valElement) {
         valElement.textContent = ORIENTATION_LABELS[layer.orientation || 'auto'];
+    }
+
+    // Обновить UI цветовой маски для активного слоя
+    if (layer.colorMask) {
+        selectedColorRange = layer.colorMask.range;
+        document.querySelectorAll('.color-range-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.color === selectedColorRange);
+        });
+        document.getElementById('colorMaskControls').style.display = 'block';
+        document.getElementById('tolerance').value = layer.colorMask.tolerance;
+        document.getElementById('maskBrightness').value = layer.colorMask.adjustments.brightness;
+        document.getElementById('maskSaturation').value = layer.colorMask.adjustments.saturation;
+        document.getElementById('maskHue').value = layer.colorMask.adjustments.hue;
+        document.getElementById('toleranceVal').textContent = layer.colorMask.tolerance;
+        document.getElementById('maskBrightnessVal').textContent = layer.colorMask.adjustments.brightness;
+        document.getElementById('maskSaturationVal').textContent = layer.colorMask.adjustments.saturation;
+        document.getElementById('maskHueVal').textContent = layer.colorMask.adjustments.hue;
+    } else {
+        resetColorMaskUI();
     }
 }
 

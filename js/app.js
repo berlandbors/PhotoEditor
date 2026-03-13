@@ -41,7 +41,8 @@ let layers = {
         sharpness: 0,
         vignette: 0,
         hdr: 0,
-        grain: 0
+        grain: 0,
+        colorMask: null
     },
     2: { 
         image: null, 
@@ -62,9 +63,12 @@ let layers = {
         sharpness: 0,
         vignette: 0,
         hdr: 0,
-        grain: 0
+        grain: 0,
+        colorMask: null
     }
 };
+
+let selectedColorRange = null;
 
 let isDragging = false;
 let dragStartX = 0;
