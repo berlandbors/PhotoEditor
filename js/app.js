@@ -29,6 +29,7 @@ function createNewLayer() {
         id,
         name: `Слой ${id}`,
         image: null,
+        originalImage: null,
         x: 200,
         y: 150,
         scale: 1,

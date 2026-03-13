@@ -723,31 +723,26 @@ function removeLuminance(type) {
     newImg.src = tempCanvas.toDataURL('image/png');
 }
 
-// Восстановить непрозрачность
+// Восстановить исходное изображение
 function resetTransparency() {
     const layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) return;
+    if (!layer || !layer.originalImage) {
+        showHint('Нет исходного изображения');
+        return;
+    }
 
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
+    tempCanvas.width = layer.originalImage.width;
+    tempCanvas.height = layer.originalImage.height;
 
-    tempCtx.drawImage(layer.image, 0, 0);
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-
-    for (let i = 3; i < data.length; i += 4) {
-        data[i] = 255; // Полная непрозрачность
-    }
-
-    tempCtx.putImageData(imageData, 0, 0);
+    tempCtx.drawImage(layer.originalImage, 0, 0);
 
     const newImg = new Image();
     newImg.onload = function() {
         layer.image = newImg;
         render();
-        showHint('Непрозрачность восстановлена');
+        showHint('Исходное изображение восстановлено');
     };
     newImg.src = tempCanvas.toDataURL('image/png');
 }
