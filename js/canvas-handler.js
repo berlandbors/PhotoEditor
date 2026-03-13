@@ -95,6 +95,18 @@ function applyFiltersToImage(layer, imageOverride) {
         data = imageData.data;
     }
 
+    // Применяем Channel Mixer
+    if (layer.channelMixer) {
+        imageData = applyChannelMixer(imageData, layer.channelMixer);
+        data = imageData.data;
+    }
+
+    // Применяем Levels
+    if (layer.levels) {
+        imageData = applyLevels(imageData, layer.levels);
+        data = imageData.data;
+    }
+
     // Применяем фильтры
     for (let i = 0; i < data.length; i += 4) {
         let r = data[i];

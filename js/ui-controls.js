@@ -421,4 +421,155 @@ function initUIControls() {
     initSlider('maskHue', function() {
         document.getElementById('maskHueVal').textContent = document.getElementById('maskHue').value;
     });
+
+    // Ползунки Channel Mixer
+    initChannelMixerControls();
+}
+
+// Инициализация слайдеров Channel Mixer
+function initChannelMixerControls() {
+    const channelSliders = [
+        'redFromRed', 'redFromGreen', 'redFromBlue',
+        'greenFromRed', 'greenFromGreen', 'greenFromBlue',
+        'blueFromRed', 'blueFromGreen', 'blueFromBlue',
+        'blackPoint', 'whitePoint', 'gamma'
+    ];
+
+    channelSliders.forEach(function(id) {
+        initSlider(id, function() { updateChannelMixer(); });
+    });
+}
+
+function updateChannelMixer() {
+    const layer = layers[activeLayer];
+
+    layer.channelMixer = {
+        redChannel: {
+            red: parseInt(document.getElementById('redFromRed').value),
+            green: parseInt(document.getElementById('redFromGreen').value),
+            blue: parseInt(document.getElementById('redFromBlue').value)
+        },
+        greenChannel: {
+            red: parseInt(document.getElementById('greenFromRed').value),
+            green: parseInt(document.getElementById('greenFromGreen').value),
+            blue: parseInt(document.getElementById('greenFromBlue').value)
+        },
+        blueChannel: {
+            red: parseInt(document.getElementById('blueFromRed').value),
+            green: parseInt(document.getElementById('blueFromGreen').value),
+            blue: parseInt(document.getElementById('blueFromBlue').value)
+        }
+    };
+
+    layer.levels = {
+        blackPoint: parseInt(document.getElementById('blackPoint').value),
+        whitePoint: parseInt(document.getElementById('whitePoint').value),
+        gamma: parseFloat(document.getElementById('gamma').value)
+    };
+
+    updateChannelMixerValueDisplays(layer);
+    render();
+}
+
+function updateChannelMixerValueDisplays(layer) {
+    document.getElementById('redFromRedVal').textContent = layer.channelMixer.redChannel.red;
+    document.getElementById('redFromGreenVal').textContent = layer.channelMixer.redChannel.green;
+    document.getElementById('redFromBlueVal').textContent = layer.channelMixer.redChannel.blue;
+
+    document.getElementById('greenFromRedVal').textContent = layer.channelMixer.greenChannel.red;
+    document.getElementById('greenFromGreenVal').textContent = layer.channelMixer.greenChannel.green;
+    document.getElementById('greenFromBlueVal').textContent = layer.channelMixer.greenChannel.blue;
+
+    document.getElementById('blueFromRedVal').textContent = layer.channelMixer.blueChannel.red;
+    document.getElementById('blueFromGreenVal').textContent = layer.channelMixer.blueChannel.green;
+    document.getElementById('blueFromBlueVal').textContent = layer.channelMixer.blueChannel.blue;
+
+    document.getElementById('blackPointVal').textContent = layer.levels.blackPoint;
+    document.getElementById('whitePointVal').textContent = layer.levels.whitePoint;
+    document.getElementById('gammaVal').textContent = layer.levels.gamma.toFixed(2);
+}
+
+function updateChannelMixerUI(layer) {
+    const cm = layer.channelMixer;
+    const lv = layer.levels;
+
+    document.getElementById('redFromRed').value = cm ? cm.redChannel.red : 100;
+    document.getElementById('redFromGreen').value = cm ? cm.redChannel.green : 0;
+    document.getElementById('redFromBlue').value = cm ? cm.redChannel.blue : 0;
+
+    document.getElementById('greenFromRed').value = cm ? cm.greenChannel.red : 0;
+    document.getElementById('greenFromGreen').value = cm ? cm.greenChannel.green : 100;
+    document.getElementById('greenFromBlue').value = cm ? cm.greenChannel.blue : 0;
+
+    document.getElementById('blueFromRed').value = cm ? cm.blueChannel.red : 0;
+    document.getElementById('blueFromGreen').value = cm ? cm.blueChannel.green : 0;
+    document.getElementById('blueFromBlue').value = cm ? cm.blueChannel.blue : 100;
+
+    document.getElementById('redFromRedVal').textContent = cm ? cm.redChannel.red : 100;
+    document.getElementById('redFromGreenVal').textContent = cm ? cm.redChannel.green : 0;
+    document.getElementById('redFromBlueVal').textContent = cm ? cm.redChannel.blue : 0;
+
+    document.getElementById('greenFromRedVal').textContent = cm ? cm.greenChannel.red : 0;
+    document.getElementById('greenFromGreenVal').textContent = cm ? cm.greenChannel.green : 100;
+    document.getElementById('greenFromBlueVal').textContent = cm ? cm.greenChannel.blue : 0;
+
+    document.getElementById('blueFromRedVal').textContent = cm ? cm.blueChannel.red : 0;
+    document.getElementById('blueFromGreenVal').textContent = cm ? cm.blueChannel.green : 0;
+    document.getElementById('blueFromBlueVal').textContent = cm ? cm.blueChannel.blue : 100;
+
+    document.getElementById('blackPoint').value = lv ? lv.blackPoint : 0;
+    document.getElementById('whitePoint').value = lv ? lv.whitePoint : 255;
+    document.getElementById('gamma').value = lv ? lv.gamma : 1.0;
+
+    document.getElementById('blackPointVal').textContent = lv ? lv.blackPoint : 0;
+    document.getElementById('whitePointVal').textContent = lv ? lv.whitePoint : 255;
+    document.getElementById('gammaVal').textContent = lv ? lv.gamma.toFixed(2) : '1.00';
+}
+
+function applyChannelMixerPreset(presetName) {
+    const preset = CHANNEL_MIXER_PRESETS[presetName];
+    if (!preset) return;
+
+    document.getElementById('redFromRed').value = preset.redChannel.red;
+    document.getElementById('redFromGreen').value = preset.redChannel.green;
+    document.getElementById('redFromBlue').value = preset.redChannel.blue;
+
+    document.getElementById('greenFromRed').value = preset.greenChannel.red;
+    document.getElementById('greenFromGreen').value = preset.greenChannel.green;
+    document.getElementById('greenFromBlue').value = preset.greenChannel.blue;
+
+    document.getElementById('blueFromRed').value = preset.blueChannel.red;
+    document.getElementById('blueFromGreen').value = preset.blueChannel.green;
+    document.getElementById('blueFromBlue').value = preset.blueChannel.blue;
+
+    updateChannelMixer();
+    showHint('Пресет: ' + preset.name);
+}
+
+function resetChannelMixer() {
+    document.getElementById('channelMixerPreset').value = 'default';
+    document.getElementById('blackPoint').value = 0;
+    document.getElementById('whitePoint').value = 255;
+    document.getElementById('gamma').value = 1.0;
+
+    layers[activeLayer].channelMixer = null;
+    layers[activeLayer].levels = null;
+
+    // Сброс слайдеров Channel Mixer через пресет по умолчанию
+    const preset = CHANNEL_MIXER_PRESETS['default'];
+    document.getElementById('redFromRed').value = preset.redChannel.red;
+    document.getElementById('redFromGreen').value = preset.redChannel.green;
+    document.getElementById('redFromBlue').value = preset.redChannel.blue;
+    document.getElementById('greenFromRed').value = preset.greenChannel.red;
+    document.getElementById('greenFromGreen').value = preset.greenChannel.green;
+    document.getElementById('greenFromBlue').value = preset.greenChannel.blue;
+    document.getElementById('blueFromRed').value = preset.blueChannel.red;
+    document.getElementById('blueFromGreen').value = preset.blueChannel.green;
+    document.getElementById('blueFromBlue').value = preset.blueChannel.blue;
+
+    // Сброс отображаемых значений через updateChannelMixerUI
+    updateChannelMixerUI(layers[activeLayer]);
+
+    render();
+    showHint('Каналы сброшены');
 }
