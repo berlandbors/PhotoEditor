@@ -96,6 +96,7 @@ function removeLayer(num) {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,
@@ -139,6 +140,7 @@ function updateControls() {
     
     updateValues();
     updateBlendModeButtons();
+    updateOrientationButtons();
 }
 
 function updateBlendModeButtons() {
@@ -153,6 +155,17 @@ function updateBlendModeButtons() {
     });
     
     updateBlendModeDisplay();
+}
+
+function updateOrientationButtons() {
+    const layer = layers[activeLayer];
+    const orientation = layer.orientation || 'auto';
+
+    document.querySelectorAll('.orientation-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.orientation === orientation);
+    });
+
+    document.getElementById('orientationVal').textContent = ORIENTATION_LABELS[orientation] || 'Авто';
 }
 
 function updateBlendModeDisplay() {
@@ -219,6 +232,7 @@ function resetLayer() {
         opacity: 1,
         blendMode: 'source-over',
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,

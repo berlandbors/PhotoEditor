@@ -11,6 +11,13 @@ let uiScale = 1;
 let canvasZoom = 1;
 let currentTab = 'basic';
 
+// Метки ориентаций изображений
+const ORIENTATION_LABELS = {
+    auto: 'Авто',
+    landscape: 'Альбомная 📐',
+    portrait: 'Книжная 📱'
+};
+
 // Структура слоёв с фильтрами и эффектами
 let layers = {
     1: { 
@@ -22,6 +29,7 @@ let layers = {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         // Фильтры
         brightness: 0,
         contrast: 0,
@@ -44,6 +52,7 @@ let layers = {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,

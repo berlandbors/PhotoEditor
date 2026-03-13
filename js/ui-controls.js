@@ -132,6 +132,13 @@ function setBlendMode(mode) {
     showHint(blendModeNames[mode]);
 }
 
+function setOrientation(orientation) {
+    layers[activeLayer].orientation = orientation;
+    updateOrientationButtons();
+    render();
+    showHint('Ориентация: ' + (ORIENTATION_LABELS[orientation] || 'Авто'));
+}
+
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const icon = document.getElementById('toggleIcon');
@@ -250,6 +257,14 @@ function initUIControls() {
         btn.addEventListener('click', function() {
             const mode = this.dataset.blend;
             setBlendMode(mode);
+        });
+    });
+
+    // Кнопки ориентации
+    document.querySelectorAll('.orientation-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const orientation = this.dataset.orientation;
+            setOrientation(orientation);
         });
     });
 
