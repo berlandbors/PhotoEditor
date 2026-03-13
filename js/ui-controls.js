@@ -132,6 +132,24 @@ function setBlendMode(mode) {
     showHint(blendModeNames[mode]);
 }
 
+function setOrientation(layerNum, orientation) {
+    layers[layerNum].orientation = orientation;
+
+    // Обновить активную кнопку
+    document.querySelectorAll(`.orientation-btn[data-layer="${layerNum}"]`).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.orientation === orientation);
+    });
+
+    // Обновить текстовое значение
+    const valElement = document.getElementById(`orientation${layerNum}Val`);
+    if (valElement) {
+        valElement.textContent = ORIENTATION_LABELS[orientation];
+    }
+
+    render();
+    showHint(`Ориентация: ${ORIENTATION_LABELS[orientation]}`);
+}
+
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const icon = document.getElementById('toggleIcon');
@@ -250,6 +268,15 @@ function initUIControls() {
         btn.addEventListener('click', function() {
             const mode = this.dataset.blend;
             setBlendMode(mode);
+        });
+    });
+
+    // Кнопки ориентации
+    document.querySelectorAll('.orientation-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const layerNum = parseInt(this.dataset.layer);
+            const orientation = this.dataset.orientation;
+            setOrientation(layerNum, orientation);
         });
     });
 

@@ -96,6 +96,7 @@ function removeLayer(num) {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,
@@ -108,6 +109,13 @@ function removeLayer(num) {
         grain: 0
     };
     
+    // Сбросить кнопки ориентации для этого слоя
+    document.querySelectorAll(`.orientation-btn[data-layer="${num}"]`).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.orientation === 'auto');
+    });
+    const valElement = document.getElementById(`orientation${num}Val`);
+    if (valElement) valElement.textContent = ORIENTATION_LABELS['auto'];
+
     updateCanvasOverlay();
     render();
     showHint('Удалено');
@@ -139,6 +147,15 @@ function updateControls() {
     
     updateValues();
     updateBlendModeButtons();
+
+    // Обновить кнопки ориентации для активного слоя
+    document.querySelectorAll(`.orientation-btn[data-layer="${activeLayer}"]`).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.orientation === (layer.orientation || 'auto'));
+    });
+    const valElement = document.getElementById(`orientation${activeLayer}Val`);
+    if (valElement) {
+        valElement.textContent = ORIENTATION_LABELS[layer.orientation || 'auto'];
+    }
 }
 
 function updateBlendModeButtons() {
@@ -219,6 +236,7 @@ function resetLayer() {
         opacity: 1,
         blendMode: 'source-over',
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,

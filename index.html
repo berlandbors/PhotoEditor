@@ -140,6 +140,30 @@
                         <button class="quick-btn" onclick="flipH()">↔️ Отразить</button>
                         <button class="quick-btn" onclick="swapLayers()">🔄 Поменять</button>
                     </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>📐 Ориентация (Слой 1)</span>
+                            <span class="param-value" id="orientation1Val">Авто</span>
+                        </div>
+                        <div class="orientation-buttons">
+                            <button class="orientation-btn active" data-orientation="auto" data-layer="1" title="Без изменений">🔄 Авто</button>
+                            <button class="orientation-btn" data-orientation="landscape" data-layer="1" title="Альбомная (горизонтальная)">📐 Альбомная</button>
+                            <button class="orientation-btn" data-orientation="portrait" data-layer="1" title="Книжная (вертикальная)">📱 Книжная</button>
+                        </div>
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>📐 Ориентация (Слой 2)</span>
+                            <span class="param-value" id="orientation2Val">Авто</span>
+                        </div>
+                        <div class="orientation-buttons">
+                            <button class="orientation-btn active" data-orientation="auto" data-layer="2" title="Без изменений">🔄 Авто</button>
+                            <button class="orientation-btn" data-orientation="landscape" data-layer="2" title="Альбомная (горизонтальная)">📐 Альбомная</button>
+                            <button class="orientation-btn" data-orientation="portrait" data-layer="2" title="Книжная (вертикальная)">📱 Книжная</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ТАБ: Фильтры -->
