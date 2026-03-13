@@ -288,6 +288,11 @@ function loadImageToLayer(input) {
         img.onload = () => {
             layer.image = img;
 
+            // Сохранить оригинал как независимую копию
+            const originalImg = new Image();
+            originalImg.src = e.target.result;
+            layer.originalImage = originalImg;
+
             const thumbnail = layerItem.querySelector('.layer-thumbnail');
             thumbnail.src = e.target.result;
             thumbnail.style.display = 'block';
@@ -462,12 +467,13 @@ function resetLayer() {
     const layer = layers[activeLayerIndex];
     if (!layer.image) return;
 
-    const { id, name, image } = layer;
+    const { id, name, image, originalImage } = layer;
     const resetted = createNewLayer();
     nextLayerId--; // undo ID increment — we're resetting, not creating a new layer
     resetted.id = id;
     resetted.name = name;
     resetted.image = image;
+    resetted.originalImage = originalImage;
     layers[activeLayerIndex] = resetted;
 
     updateControls();
