@@ -389,6 +389,24 @@ input[type="range"]::-moz-range-thumb {
     box-shadow: 0 2px 8px rgba(0, 120, 212, 0.4);
 }
 
+/* Кнопки попиксельных Canvas режимов */
+.blend-btn.canvas-mode {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-left: 3px solid #ffd700;
+    color: #fff;
+}
+
+.blend-btn.canvas-mode:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    transform: translateY(-2px);
+}
+
+.blend-btn.canvas-mode.active {
+    background: linear-gradient(135deg, #0078d4 0%, #764ba2 100%);
+    border-color: #ffd700;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+
 /* Кнопки быстрых фильтров */
 .filter-presets {
     display: grid;

@@ -163,13 +163,88 @@ function hslToRgb(h, s, l) {
 // ===== РЕНДЕРИНГ С ФИЛЬТРАМИ =====
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    [1, 2].forEach(num => {
-        const layer = layers[num];
-        if (layer.image) {
-            drawLayer(layer);
-        }
-    });
+
+    const layer1 = layers[1];
+    const layer2 = layers[2];
+
+    // Если второй слой использует попиксельное смешивание —
+    // оба слоя объединяются в applyCanvasBlending, рисуем сразу результат
+    if (layer2.image && layer2.blendMode.startsWith('canvas-')) {
+        applyCanvasBlending(layer1, layer2);
+        return;
+    }
+
+    // Стандартный рендеринг: CSS режимы наложения через globalCompositeOperation
+    if (layer1.image) {
+        drawLayer(layer1);
+    }
+    if (layer2.image) {
+        drawLayer(layer2);
+    }
+}
+
+/**
+ * Отрисовать слой на отдельный временный canvas того же размера, что и основной.
+ * Применяются все трансформации и фильтры, но режим наложения — source-over.
+ * @param {object} layer
+ * @returns {HTMLCanvasElement}
+ */
+function createTempCanvas(layer) {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    if (!layer.image) return tempCanvas;
+
+    tempCtx.save();
+    tempCtx.globalAlpha = 1;
+    tempCtx.globalCompositeOperation = 'source-over';
+
+    const width = layer.image.width * layer.scale;
+    const height = layer.image.height * layer.scale;
+
+    // Трансформации
+    tempCtx.translate(layer.x + width / 2, layer.y + height / 2);
+    tempCtx.rotate(layer.rotation * Math.PI / 180);
+    if (layer.flipX) tempCtx.scale(-1, 1);
+    tempCtx.translate(-(layer.x + width / 2), -(layer.y + height / 2));
+
+    // Применяем пиксельные фильтры (яркость, контраст и т.д.)
+    const filteredImage = applyFiltersToImage(layer);
+
+    // CSS фильтр для размытия
+    if (layer.blur > 0) {
+        tempCtx.filter = `blur(${layer.blur}px)`;
+    }
+
+    tempCtx.drawImage(filteredImage, layer.x, layer.y, width, height);
+    tempCtx.restore();
+    tempCtx.filter = 'none';
+
+    return tempCanvas;
+}
+
+/**
+ * Применить попиксельное смешивание двух слоёв и отрисовать результат на основном canvas.
+ * @param {object} layer1 — нижний слой
+ * @param {object} layer2 — верхний слой (содержит canvas-режим смешивания)
+ */
+function applyCanvasBlending(layer1, layer2) {
+    // Извлекаем имя алгоритма: 'canvas-average' → 'average'
+    const mode = layer2.blendMode.replace('canvas-', '');
+
+    // Рендерим каждый слой на отдельный временный canvas
+    const tempCanvas1 = createTempCanvas(layer1);
+    const tempCanvas2 = createTempCanvas(layer2);
+
+    // Применяем попиксельный алгоритм из blending.js
+    const resultCanvas = window.BlendingEngine.blendImages(
+        tempCanvas1, tempCanvas2, mode, layer2.opacity
+    );
+
+    // Отрисовываем результат на основном canvas
+    ctx.drawImage(resultCanvas, 0, 0);
 }
 
 function drawLayer(layer) {

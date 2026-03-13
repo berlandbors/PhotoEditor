@@ -121,6 +121,16 @@
                             <button class="blend-btn" data-blend="lighten">Светлее</button>
                             <button class="blend-btn" data-blend="color-dodge">Dodge</button>
                             <button class="blend-btn" data-blend="hard-light">Свет</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-average" title="Попиксельное">⚡ Усреднение</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-additive" title="Попиксельное">⚡ Сложение</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-difference" title="Попиксельное">⚡ Разность</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-lighten-only" title="Попиксельное">⚡ Светлее</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-darken-only" title="Попиксельное">⚡ Темнее</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-luminosity" title="Попиксельное">⚡ Яркость</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-h" title="Попиксельное">⚡ Градиент →</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-v" title="Попиксельное">⚡ Градиент ↓</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-radial" title="Попиксельное">⚡ Градиент ○</button>
+                            <button class="blend-btn canvas-mode" data-blend="canvas-chroma-key" title="Попиксельное">⚡ Хромакей</button>
                         </div>
                     </div>
 
@@ -340,6 +350,7 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/blending.js"></script>
     <script src="js/canvas-handler.js"></script>
     <script src="js/filter-presets.js"></script>
     <script src="js/layer-manager.js"></script>

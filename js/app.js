@@ -62,6 +62,7 @@ let dragStartX = 0;
 let dragStartY = 0;
 
 const blendModeNames = {
+    // Стандартные CSS режимы наложения
     'source-over': 'Обычный',
     'multiply': 'Умножение',
     'screen': 'Экран',
@@ -69,7 +70,22 @@ const blendModeNames = {
     'darken': 'Темнее',
     'lighten': 'Светлее',
     'color-dodge': 'Dodge',
-    'hard-light': 'Свет'
+    'hard-light': 'Свет',
+
+    // Попиксельные Canvas режимы (⚡)
+    'canvas-average': '⚡ Усреднение',
+    'canvas-additive': '⚡ Сложение',
+    'canvas-multiply': '⚡ Умножение*',
+    'canvas-screen': '⚡ Экран*',
+    'canvas-overlay': '⚡ Наложение*',
+    'canvas-difference': '⚡ Разность',
+    'canvas-lighten-only': '⚡ Светлее',
+    'canvas-darken-only': '⚡ Темнее',
+    'canvas-luminosity': '⚡ Яркость',
+    'canvas-gradient-h': '⚡ Градиент →',
+    'canvas-gradient-v': '⚡ Градиент ↓',
+    'canvas-gradient-radial': '⚡ Градиент ○',
+    'canvas-chroma-key': '⚡ Хромакей'
 };
 
 let hintTimeout;
