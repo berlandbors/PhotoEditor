@@ -22,6 +22,7 @@ let layers = {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         // Фильтры
         brightness: 0,
         contrast: 0,
@@ -44,6 +45,7 @@ let layers = {
         opacity: 1, 
         blendMode: 'source-over', 
         flipX: false,
+        orientation: 'auto',
         brightness: 0,
         contrast: 0,
         saturation: 0,

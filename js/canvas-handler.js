@@ -1,17 +1,84 @@
 // Canvas handler - rendering layers, applying pixel filters, and drag interactions
 
+// ===== ОРИЕНТАЦИЯ ИЗОБРАЖЕНИЯ =====
+const ORIENTATION_LABELS = {
+    'auto': 'Авто',
+    'landscape': 'Альбомная',
+    'portrait': 'Книжная'
+    // 'square' is an internal-only value used to skip rotation for square images
+};
+
+/**
+ * Определить текущую ориентацию изображения
+ * @param {HTMLImageElement|HTMLCanvasElement} img
+ * @returns {'landscape'|'portrait'|'square'}
+ */
+function getImageOrientation(img) {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (w > h) return 'landscape';
+    if (h > w) return 'portrait';
+    return 'square';
+}
+
+/**
+ * Повернуть изображение на 90° для получения нужной ориентации
+ * @param {HTMLImageElement} img
+ * @param {'auto'|'landscape'|'portrait'} targetOrientation
+ * @returns {HTMLImageElement|HTMLCanvasElement}
+ */
+function rotateImageForOrientation(img, targetOrientation) {
+    if (targetOrientation === 'auto') return img;
+
+    const currentOrientation = getImageOrientation(img);
+
+    // Квадратные изображения не поворачиваем
+    if (currentOrientation === 'square') return img;
+
+    // Если ориентация уже совпадает, поворот не нужен
+    if (currentOrientation === targetOrientation) return img;
+
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+
+    // Создаём временный canvas для поворота на 90° по часовой стрелке
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Меняем ширину и высоту местами
+    tempCanvas.width = h;
+    tempCanvas.height = w;
+
+    tempCtx.translate(h / 2, w / 2);
+    tempCtx.rotate(Math.PI / 2);
+    tempCtx.drawImage(img, -w / 2, -h / 2);
+
+    return tempCanvas;
+}
+
+/**
+ * Получить изображение с применённой ориентацией
+ * @param {Object} layer
+ * @returns {HTMLImageElement|HTMLCanvasElement|null}
+ */
+function getOrientedImage(layer) {
+    if (!layer.image) return null;
+    return rotateImageForOrientation(layer.image, layer.orientation || 'auto');
+}
+
 // ===== ПРИМЕНЕНИЕ ФИЛЬТРОВ =====
-function applyFiltersToImage(layer) {
-    if (!layer.image) return layer.image;
+function applyFiltersToImage(layer, imageOverride) {
+    const img = imageOverride || layer.image;
+    if (!img) return img;
     
     // Создаём временный canvas для применения фильтров
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
+    tempCanvas.width = img.width;
+    tempCanvas.height = img.height;
     
     // Рисуем оригинал
-    tempCtx.drawImage(layer.image, 0, 0);
+    tempCtx.drawImage(img, 0, 0);
     
     // Получаем данные изображения
     let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
@@ -197,12 +264,16 @@ function createTempCanvas(layer) {
 
     if (!layer.image) return tempCanvas;
 
+    // Используем изображение с применённой ориентацией
+    const orientedImage = getOrientedImage(layer);
+    if (!orientedImage) return tempCanvas;
+
     tempCtx.save();
     tempCtx.globalAlpha = 1;
     tempCtx.globalCompositeOperation = 'source-over';
 
-    const width = layer.image.width * layer.scale;
-    const height = layer.image.height * layer.scale;
+    const width = orientedImage.width * layer.scale;
+    const height = orientedImage.height * layer.scale;
 
     // Трансформации
     tempCtx.translate(layer.x + width / 2, layer.y + height / 2);
@@ -210,8 +281,8 @@ function createTempCanvas(layer) {
     if (layer.flipX) tempCtx.scale(-1, 1);
     tempCtx.translate(-(layer.x + width / 2), -(layer.y + height / 2));
 
-    // Применяем пиксельные фильтры (яркость, контраст и т.д.)
-    const filteredImage = applyFiltersToImage(layer);
+    // Применяем пиксельные фильтры к ориентированному изображению
+    const filteredImage = applyFiltersToImage(layer, orientedImage);
 
     // CSS фильтр для размытия
     if (layer.blur > 0) {
@@ -254,8 +325,15 @@ function drawLayer(layer) {
     ctx.globalAlpha = layer.opacity;
     ctx.globalCompositeOperation = layer.blendMode;
     
-    const width = layer.image.width * layer.scale;
-    const height = layer.image.height * layer.scale;
+    // Используем изображение с применённой ориентацией
+    const orientedImage = getOrientedImage(layer);
+    if (!orientedImage) {
+        ctx.restore();
+        return;
+    }
+
+    const width = orientedImage.width * layer.scale;
+    const height = orientedImage.height * layer.scale;
     
     // Трансформации
     ctx.translate(layer.x + width / 2, layer.y + height / 2);
@@ -263,8 +341,8 @@ function drawLayer(layer) {
     if (layer.flipX) ctx.scale(-1, 1);
     ctx.translate(-(layer.x + width / 2), -(layer.y + height / 2));
     
-    // Применяем фильтры
-    const filteredImage = applyFiltersToImage(layer);
+    // Применяем фильтры к ориентированному изображению
+    const filteredImage = applyFiltersToImage(layer, orientedImage);
     
     // CSS фильтры для blur
     if (layer.blur > 0) {
