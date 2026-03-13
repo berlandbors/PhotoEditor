@@ -442,6 +442,9 @@ function initUIControls() {
 
     // Ползунки Channel Mixer
     initChannelMixerControls();
+
+    // Инициализация вкладки удаления фона
+    initBackgroundTab();
 }
 
 // Инициализация слайдеров Channel Mixer
@@ -592,4 +595,195 @@ function resetChannelMixer() {
 
     render();
     showHint('Каналы сброшены');
+}
+
+// ===== УДАЛЕНИЕ ФОНА =====
+
+// Конвертировать hex в RGB объект
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 0, g: 255, b: 0 };
+}
+
+// Применить удаление фона
+function applyBackgroundRemoval() {
+    const layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('Нет активного слоя');
+        return;
+    }
+
+    const mode = document.getElementById('bgRemovalMode').value;
+    const tolerance = parseInt(document.getElementById('bgTolerance').value);
+    const feather = parseInt(document.getElementById('bgFeather').value);
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    if (mode === 'auto') {
+        imageData = autoRemoveBackground(imageData, { tolerance, feather });
+    } else if (mode === 'color') {
+        const bgColor = hexToRgb(document.getElementById('bgColor').value);
+        imageData = removeBackgroundByColor(imageData, {
+            targetColor: bgColor,
+            tolerance,
+            feather
+        });
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint('Фон удалён');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Применить удаление канала
+function applyChannelRemoval() {
+    const layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('Нет активного слоя');
+        return;
+    }
+
+    const channel = document.getElementById('channelToRemove').value;
+    if (!channel) {
+        showHint('Выберите канал');
+        return;
+    }
+
+    const mode = document.getElementById('channelMode').value;
+    const tolerance = parseInt(document.getElementById('channelTolerance').value);
+    const replacementColor = mode === 'replace'
+        ? hexToRgb(document.getElementById('replacementColor').value)
+        : null;
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    imageData = removeColorChannel(imageData, channel, mode, {
+        tolerance,
+        replacementColor
+    });
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint(`Канал ${channel} обработан`);
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Удалить тени/блики
+function removeLuminance(type) {
+    const layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) return;
+
+    const threshold = parseInt(document.getElementById('luminanceThreshold').value);
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    imageData = removeLuminanceRange(imageData, type, threshold);
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint(type === 'shadows' ? 'Тени удалены' : 'Блики удалены');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Восстановить непрозрачность
+function resetTransparency() {
+    const layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) return;
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+
+    for (let i = 3; i < data.length; i += 4) {
+        data[i] = 255; // Полная непрозрачность
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint('Непрозрачность восстановлена');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Инициализация обработчиков вкладки "Фон"
+function initBackgroundTab() {
+    // Показать/скрыть цвет замены
+    document.getElementById('channelMode').addEventListener('change', function(e) {
+        document.getElementById('replacementGroup').style.display =
+            e.target.value === 'replace' ? 'block' : 'none';
+    });
+
+    // Показать/скрыть пипетку цвета фона
+    document.getElementById('bgRemovalMode').addEventListener('change', function(e) {
+        document.getElementById('colorPickerGroup').style.display =
+            e.target.value === 'color' ? 'block' : 'none';
+    });
+
+    // Инициализация слайдеров
+    initSlider('bgTolerance', function() {
+        document.getElementById('bgToleranceVal').textContent =
+            document.getElementById('bgTolerance').value;
+    });
+
+    initSlider('bgFeather', function() {
+        document.getElementById('bgFeatherVal').textContent =
+            document.getElementById('bgFeather').value;
+    });
+
+    initSlider('channelTolerance', function() {
+        document.getElementById('channelToleranceVal').textContent =
+            document.getElementById('channelTolerance').value;
+    });
+
+    initSlider('luminanceThreshold', function() {
+        document.getElementById('luminanceThresholdVal').textContent =
+            document.getElementById('luminanceThreshold').value;
+    });
 }
