@@ -63,6 +63,7 @@
                     <button class="tab-btn" onclick="switchTab('filters', this)">🎨 Фильтры</button>
                     <button class="tab-btn" onclick="switchTab('effects', this)">✨ Эффекты</button>
                     <button class="tab-btn" onclick="switchTab('colormask', this)">🎭 Маски</button>
+                    <button class="tab-btn" onclick="switchTab('channels', this)">📺 Каналы</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -344,6 +345,145 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ТАБ: Цветовые каналы -->
+                <div class="tab-content" id="tab-channels">
+                    <div class="upload-title">📺 Цветовые каналы слоя <span id="activeLayerNum5">1</span></div>
+
+                    <!-- Пресеты -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Пресеты миксера</span>
+                        </div>
+                        <select id="channelMixerPreset" onchange="applyChannelMixerPreset(this.value)">
+                            <option value="default">По умолчанию</option>
+                            <option value="teal-orange">Teal &amp; Orange (Кино)</option>
+                            <option value="warm-look">Тёплый Look</option>
+                            <option value="cool-look">Холодный Look</option>
+                            <option value="bw-red-filter">Ч/Б (Красный фильтр)</option>
+                            <option value="bw-green-filter">Ч/Б (Зелёный фильтр)</option>
+                            <option value="bw-blue-filter">Ч/Б (Синий фильтр)</option>
+                            <option value="swap-rb">Инверсия R↔B</option>
+                        </select>
+                    </div>
+
+                    <div class="channel-section">
+                        <div class="channel-header">🔴 Красный канал (выход)</div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔴 Red</span>
+                                <span class="param-value" id="redFromRedVal">100</span>
+                            </div>
+                            <input type="range" id="redFromRed" min="-200" max="200" value="100" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🟢 Green</span>
+                                <span class="param-value" id="redFromGreenVal">0</span>
+                            </div>
+                            <input type="range" id="redFromGreen" min="-200" max="200" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔵 Blue</span>
+                                <span class="param-value" id="redFromBlueVal">0</span>
+                            </div>
+                            <input type="range" id="redFromBlue" min="-200" max="200" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="channel-section">
+                        <div class="channel-header">🟢 Зелёный канал (выход)</div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔴 Red</span>
+                                <span class="param-value" id="greenFromRedVal">0</span>
+                            </div>
+                            <input type="range" id="greenFromRed" min="-200" max="200" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🟢 Green</span>
+                                <span class="param-value" id="greenFromGreenVal">100</span>
+                            </div>
+                            <input type="range" id="greenFromGreen" min="-200" max="200" value="100" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔵 Blue</span>
+                                <span class="param-value" id="greenFromBlueVal">0</span>
+                            </div>
+                            <input type="range" id="greenFromBlue" min="-200" max="200" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="channel-section">
+                        <div class="channel-header">🔵 Синий канал (выход)</div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔴 Red</span>
+                                <span class="param-value" id="blueFromRedVal">0</span>
+                            </div>
+                            <input type="range" id="blueFromRed" min="-200" max="200" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🟢 Green</span>
+                                <span class="param-value" id="blueFromGreenVal">0</span>
+                            </div>
+                            <input type="range" id="blueFromGreen" min="-200" max="200" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>← 🔵 Blue</span>
+                                <span class="param-value" id="blueFromBlueVal">100</span>
+                            </div>
+                            <input type="range" id="blueFromBlue" min="-200" max="200" value="100" step="1">
+                        </div>
+                    </div>
+
+                    <!-- Levels (Уровни) -->
+                    <div class="channel-section">
+                        <div class="channel-header">⚫⚪ Уровни</div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>⚫ Чёрная точка</span>
+                                <span class="param-value" id="blackPointVal">0</span>
+                            </div>
+                            <input type="range" id="blackPoint" min="0" max="100" value="0" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>⚪ Белая точка</span>
+                                <span class="param-value" id="whitePointVal">255</span>
+                            </div>
+                            <input type="range" id="whitePoint" min="155" max="255" value="255" step="1">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>⚙️ Гамма</span>
+                                <span class="param-value" id="gammaVal">1.00</span>
+                            </div>
+                            <input type="range" id="gamma" min="0.1" max="3.0" value="1.0" step="0.01">
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="resetChannelMixer()">↺ Сбросить</button>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -444,6 +584,7 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/channel-mixer.js"></script>
     <script src="js/color-masks.js"></script>
     <script src="js/blending.js"></script>
     <script src="js/canvas-handler.js"></script>

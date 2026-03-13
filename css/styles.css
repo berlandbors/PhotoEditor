@@ -711,6 +711,38 @@ input[type="range"]::-moz-range-thumb {
     background: #3a3a3a;
 }
 
+/* Channel Mixer */
+.channel-section {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.channel-header {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+#channelMixerPreset {
+    width: 100%;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+#channelMixerPreset option {
+    background: #1a1a1a;
+}
+
 /* Кнопки ориентации */
 .orientation-buttons {
     display: grid;

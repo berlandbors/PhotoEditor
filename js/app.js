@@ -42,7 +42,9 @@ let layers = {
         vignette: 0,
         hdr: 0,
         grain: 0,
-        colorMask: null
+        colorMask: null,
+        channelMixer: null,
+        levels: null
     },
     2: { 
         image: null, 
@@ -64,7 +66,9 @@ let layers = {
         vignette: 0,
         hdr: 0,
         grain: 0,
-        colorMask: null
+        colorMask: null,
+        channelMixer: null,
+        levels: null
     }
 };
 

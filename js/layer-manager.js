@@ -108,7 +108,9 @@ function removeLayer(num) {
         vignette: 0,
         hdr: 0,
         grain: 0,
-        colorMask: null
+        colorMask: null,
+        channelMixer: null,
+        levels: null
     };
     
     // Сбросить кнопки ориентации для этого слоя
@@ -192,6 +194,13 @@ function updateControls() {
     } else {
         resetColorMaskUI();
     }
+
+    // Обновить UI Channel Mixer для активного слоя
+    updateChannelMixerUI(layer);
+
+    // Обновить номер активного слоя в табе каналов
+    const layerNum5El = document.getElementById('activeLayerNum5');
+    if (layerNum5El) layerNum5El.textContent = activeLayer;
 }
 
 function updateBlendModeButtons() {
