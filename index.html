@@ -312,6 +312,15 @@
                 <div class="toolbar-divider"></div>
 
                 <div class="toolbar-group">
+                    <button class="toolbar-btn orientation-btn active" data-orientation="auto" onclick="setCanvasOrientation('auto')">🔄 Авто</button>
+                    <button class="toolbar-btn orientation-btn" data-orientation="landscape" onclick="setCanvasOrientation('landscape')">📐 Альбомная</button>
+                    <button class="toolbar-btn orientation-btn" data-orientation="portrait" onclick="setCanvasOrientation('portrait')">📱 Книжная</button>
+                    <button class="toolbar-btn orientation-btn" data-orientation="square" onclick="setCanvasOrientation('square')">⬜ Квадрат</button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
                     <button class="toolbar-btn" onclick="fitCanvas()"><span class="emoji">📐</span> <span>Подогнать</span></button>
                     <button class="toolbar-btn" onclick="centerCanvas()"><span class="emoji">🎯</span> <span>Центр</span></button>
                 </div>

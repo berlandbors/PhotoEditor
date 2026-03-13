@@ -10,6 +10,13 @@ let activeLayer = 1;
 let uiScale = 1;
 let canvasZoom = 1;
 let currentTab = 'basic';
+let canvasOrientation = 'auto';
+
+const CANVAS_SIZES = {
+    landscape: { width: 1400, height: 900 },
+    portrait: { width: 900, height: 1400 },
+    square: { width: 1200, height: 1200 }
+};
 
 // Структура слоёв с фильтрами и эффектами
 let layers = {
@@ -112,6 +119,7 @@ updateCanvasOverlay();
 selectLayer(1);
 
 setTimeout(() => {
+    updateCanvasSize();
     centerCanvas();
     applyCanvasZoom();
     document.getElementById('hint').classList.add('hidden');
