@@ -173,7 +173,7 @@ function toggleSidebar() {
     icon.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
 }
 
-function applyColorMaskToLayer() {
+function applyColorMaskLive() {
     if (!selectedColorRange) return;
     if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
 
@@ -189,7 +189,6 @@ function applyColorMaskToLayer() {
     };
 
     render();
-    showHint('Маска применена: ' + COLOR_RANGES[selectedColorRange].name);
 }
 
 function resetColorMask() {
@@ -437,21 +436,27 @@ function initUIControls() {
             document.querySelectorAll('.color-range-btn').forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             document.getElementById('colorMaskControls').style.display = 'block';
+            // Применяем маску сразу при выборе цвета
+            applyColorMaskLive();
         });
     });
 
-    // Ползунки цветовой маски
+    // Ползунки цветовой маски — динамическое применение
     initSlider('tolerance', function() {
         document.getElementById('toleranceVal').textContent = document.getElementById('tolerance').value;
+        applyColorMaskLive();
     });
     initSlider('maskBrightness', function() {
         document.getElementById('maskBrightnessVal').textContent = document.getElementById('maskBrightness').value;
+        applyColorMaskLive();
     });
     initSlider('maskSaturation', function() {
         document.getElementById('maskSaturationVal').textContent = document.getElementById('maskSaturation').value;
+        applyColorMaskLive();
     });
     initSlider('maskHue', function() {
         document.getElementById('maskHueVal').textContent = document.getElementById('maskHue').value;
+        applyColorMaskLive();
     });
 
     // Ползунки Channel Mixer
@@ -529,6 +534,39 @@ function updateChannelMixerValueDisplays(layer) {
     document.getElementById('blackPointVal').textContent = layer.levels.blackPoint;
     document.getElementById('whitePointVal').textContent = layer.levels.whitePoint;
     document.getElementById('gammaVal').textContent = layer.levels.gamma.toFixed(2);
+}
+
+function updateBackgroundTabUI(layer) {
+    // Restore background removal UI
+    const bgr = layer.backgroundRemoval;
+    document.getElementById('bgRemovalMode').value = bgr ? bgr.mode : 'auto';
+    document.getElementById('colorPickerGroup').style.display =
+        (bgr && bgr.mode === 'color') ? 'block' : 'none';
+    document.getElementById('bgTolerance').value = bgr ? bgr.tolerance : 30;
+    document.getElementById('bgToleranceVal').textContent = bgr ? bgr.tolerance : 30;
+    document.getElementById('bgFeather').value = bgr ? bgr.feather : 10;
+    document.getElementById('bgFeatherVal').textContent = bgr ? bgr.feather : 10;
+    document.getElementById('bgStrength').value = bgr ? bgr.strength : 100;
+    document.getElementById('bgStrengthVal').textContent = bgr ? bgr.strength : 100;
+
+    // Restore channel removal UI
+    const cr = layer.channelRemoval;
+    document.getElementById('channelToRemove').value = cr ? cr.channel : '';
+    document.getElementById('channelMode').value = cr ? cr.mode : 'transparent';
+    document.getElementById('replacementGroup').style.display =
+        (cr && cr.mode === 'replace') ? 'block' : 'none';
+    document.getElementById('channelTolerance').value = cr ? cr.tolerance : 20;
+    document.getElementById('channelToleranceVal').textContent = cr ? cr.tolerance : 20;
+    document.getElementById('channelStrength').value = cr ? cr.strength : 100;
+    document.getElementById('channelStrengthVal').textContent = cr ? cr.strength : 100;
+
+    // Restore luminance removal UI
+    const lr = layer.luminanceRemoval;
+    document.getElementById('luminanceType').value = lr ? lr.type : '';
+    document.getElementById('luminanceThreshold').value = lr ? lr.threshold : 50;
+    document.getElementById('luminanceThresholdVal').textContent = lr ? lr.threshold : 50;
+    document.getElementById('luminanceStrength').value = lr ? lr.strength : 100;
+    document.getElementById('luminanceStrengthVal').textContent = lr ? lr.strength : 100;
 }
 
 function updateChannelMixerUI(layer) {
@@ -629,143 +667,121 @@ function hexToRgb(hex) {
     } : { r: 0, g: 255, b: 0 };
 }
 
-// Применить удаление фона
-function applyBackgroundRemoval() {
+// Применить удаление фона (неразрушающее, динамическое)
+const applyBackgroundLive = debounce(function() {
     const layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) {
-        showHint('Нет активного слоя');
-        return;
-    }
+    if (!layer || !layer.image) return;
 
     const mode = document.getElementById('bgRemovalMode').value;
     const tolerance = parseInt(document.getElementById('bgTolerance').value);
     const feather = parseInt(document.getElementById('bgFeather').value);
+    const strength = parseInt(document.getElementById('bgStrength').value);
 
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
-
-    tempCtx.drawImage(layer.image, 0, 0);
-    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-
-    if (mode === 'auto') {
-        imageData = autoRemoveBackground(imageData, { tolerance, feather });
-    } else if (mode === 'color') {
-        const bgColor = hexToRgb(document.getElementById('bgColor').value);
-        imageData = removeBackgroundByColor(imageData, {
-            targetColor: bgColor,
-            tolerance,
-            feather
-        });
+    const params = { mode, tolerance, feather, strength };
+    if (mode === 'color') {
+        params.targetColor = hexToRgb(document.getElementById('bgColor').value);
     }
 
-    tempCtx.putImageData(imageData, 0, 0);
+    layer.backgroundRemoval = params;
+    render();
+}, 150);
 
-    const newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-        showHint('Фон удалён');
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
-}
-
-// Применить удаление канала
-function applyChannelRemoval() {
+// Применить удаление канала (неразрушающее, динамическое)
+const applyChannelRemovalLive = debounce(function() {
     const layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) {
-        showHint('Нет активного слоя');
-        return;
-    }
+    if (!layer || !layer.image) return;
 
     const channel = document.getElementById('channelToRemove').value;
     if (!channel) {
-        showHint('Выберите канал');
+        layer.channelRemoval = null;
+        render();
         return;
     }
 
     const mode = document.getElementById('channelMode').value;
     const tolerance = parseInt(document.getElementById('channelTolerance').value);
+    const strength = parseInt(document.getElementById('channelStrength').value);
     const replacementColor = mode === 'replace'
         ? hexToRgb(document.getElementById('replacementColor').value)
         : null;
 
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
+    layer.channelRemoval = { channel, mode, tolerance, strength, replacementColor };
+    render();
+}, 150);
 
-    tempCtx.drawImage(layer.image, 0, 0);
-    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-
-    imageData = removeColorChannel(imageData, channel, mode, {
-        tolerance,
-        replacementColor
-    });
-
-    tempCtx.putImageData(imageData, 0, 0);
-
-    const newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-        showHint(`Канал ${channel} обработан`);
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
-}
-
-// Удалить тени/блики
-function removeLuminance(type) {
+// Применить удаление по яркости (неразрушающее, динамическое)
+const applyLuminanceLive = debounce(function() {
     const layer = layers[activeLayerIndex];
     if (!layer || !layer.image) return;
 
-    const threshold = parseInt(document.getElementById('luminanceThreshold').value);
-    const feather = parseInt(document.getElementById('bgFeather').value);
-
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
-
-    tempCtx.drawImage(layer.image, 0, 0);
-    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-
-    imageData = removeLuminanceRange(imageData, type, threshold, feather);
-
-    tempCtx.putImageData(imageData, 0, 0);
-
-    const newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
+    const type = document.getElementById('luminanceType').value;
+    if (!type) {
+        layer.luminanceRemoval = null;
         render();
-        showHint(type === 'shadows' ? 'Тени удалены' : 'Блики удалены');
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
-}
-
-// Восстановить исходное изображение
-function resetTransparency() {
-    const layer = layers[activeLayerIndex];
-    if (!layer || !layer.originalImage) {
-        showHint('Нет исходного изображения');
         return;
     }
 
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.originalImage.width;
-    tempCanvas.height = layer.originalImage.height;
+    const threshold = parseInt(document.getElementById('luminanceThreshold').value);
+    const feather = parseInt(document.getElementById('bgFeather').value);
+    const strength = parseInt(document.getElementById('luminanceStrength').value);
 
-    tempCtx.drawImage(layer.originalImage, 0, 0);
+    layer.luminanceRemoval = { type, threshold, feather, strength };
+    render();
+}, 150);
 
-    const newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-        showHint('Исходное изображение восстановлено');
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
+// Сбросить раздел удаления фона
+function resetBackgroundSection() {
+    const layer = layers[activeLayerIndex];
+    if (!layer) return;
+    layer.backgroundRemoval = null;
+    document.getElementById('bgRemovalMode').value = 'auto';
+    document.getElementById('colorPickerGroup').style.display = 'none';
+    document.getElementById('bgTolerance').value = 30;
+    document.getElementById('bgToleranceVal').textContent = 30;
+    document.getElementById('bgFeather').value = 10;
+    document.getElementById('bgFeatherVal').textContent = 10;
+    document.getElementById('bgStrength').value = 100;
+    document.getElementById('bgStrengthVal').textContent = 100;
+    render();
+    showHint('Удаление фона сброшено');
+}
+
+// Сбросить раздел удаления канала
+function resetChannelSection() {
+    const layer = layers[activeLayerIndex];
+    if (!layer) return;
+    layer.channelRemoval = null;
+    document.getElementById('channelToRemove').value = '';
+    document.getElementById('channelMode').value = 'transparent';
+    document.getElementById('replacementGroup').style.display = 'none';
+    document.getElementById('channelTolerance').value = 20;
+    document.getElementById('channelToleranceVal').textContent = 20;
+    document.getElementById('channelStrength').value = 100;
+    document.getElementById('channelStrengthVal').textContent = 100;
+    render();
+    showHint('Удаление канала сброшено');
+}
+
+// Сбросить раздел удаления по яркости
+function resetLuminanceSection() {
+    const layer = layers[activeLayerIndex];
+    if (!layer) return;
+    layer.luminanceRemoval = null;
+    document.getElementById('luminanceType').value = '';
+    document.getElementById('luminanceThreshold').value = 50;
+    document.getElementById('luminanceThresholdVal').textContent = 50;
+    document.getElementById('luminanceStrength').value = 100;
+    document.getElementById('luminanceStrengthVal').textContent = 100;
+    render();
+    showHint('Удаление по яркости сброшено');
+}
+
+// Сбросить все эффекты фона
+function resetAllBackgroundEffects() {
+    resetBackgroundSection();
+    resetChannelSection();
+    resetLuminanceSection();
+    showHint('Все эффекты фона сброшены');
 }
 
 // Инициализация обработчиков вкладки "Фон"
@@ -774,33 +790,79 @@ function initBackgroundTab() {
     document.getElementById('channelMode').addEventListener('change', function(e) {
         document.getElementById('replacementGroup').style.display =
             e.target.value === 'replace' ? 'block' : 'none';
+        applyChannelRemovalLive();
     });
 
     // Показать/скрыть пипетку цвета фона
     document.getElementById('bgRemovalMode').addEventListener('change', function(e) {
         document.getElementById('colorPickerGroup').style.display =
             e.target.value === 'color' ? 'block' : 'none';
+        applyBackgroundLive();
     });
 
-    // Инициализация слайдеров
+    // Цвет для удаления фона
+    document.getElementById('bgColor').addEventListener('input', function() {
+        applyBackgroundLive();
+    });
+
+    // Цвет замены для канала
+    document.getElementById('replacementColor').addEventListener('input', function() {
+        applyChannelRemovalLive();
+    });
+
+    // Смена канала
+    document.getElementById('channelToRemove').addEventListener('change', function() {
+        applyChannelRemovalLive();
+    });
+
+    // Тип удаления по яркости
+    document.getElementById('luminanceType').addEventListener('change', function() {
+        applyLuminanceLive();
+    });
+
+    // Инициализация слайдеров — динамическое применение
     initSlider('bgTolerance', function() {
         document.getElementById('bgToleranceVal').textContent =
             document.getElementById('bgTolerance').value;
+        applyBackgroundLive();
     });
 
     initSlider('bgFeather', function() {
         document.getElementById('bgFeatherVal').textContent =
             document.getElementById('bgFeather').value;
+        // bgFeather is shared between background removal and luminance removal (original behaviour)
+        applyBackgroundLive();
+        applyLuminanceLive();
+    });
+
+    initSlider('bgStrength', function() {
+        document.getElementById('bgStrengthVal').textContent =
+            document.getElementById('bgStrength').value;
+        applyBackgroundLive();
     });
 
     initSlider('channelTolerance', function() {
         document.getElementById('channelToleranceVal').textContent =
             document.getElementById('channelTolerance').value;
+        applyChannelRemovalLive();
+    });
+
+    initSlider('channelStrength', function() {
+        document.getElementById('channelStrengthVal').textContent =
+            document.getElementById('channelStrength').value;
+        applyChannelRemovalLive();
     });
 
     initSlider('luminanceThreshold', function() {
         document.getElementById('luminanceThresholdVal').textContent =
             document.getElementById('luminanceThreshold').value;
+        applyLuminanceLive();
+    });
+
+    initSlider('luminanceStrength', function() {
+        document.getElementById('luminanceStrengthVal').textContent =
+            document.getElementById('luminanceStrength').value;
+        applyLuminanceLive();
     });
 }
 

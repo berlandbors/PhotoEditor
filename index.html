@@ -353,7 +353,6 @@
                         </div>
 
                         <div class="quick-actions">
-                            <button class="quick-btn" onclick="applyColorMaskToLayer()">✓ Применить</button>
                             <button class="quick-btn" onclick="resetColorMask()">↺ Сбросить</button>
                         </div>
                     </div>
@@ -537,7 +536,19 @@
                         <input type="range" id="bgFeather" min="0" max="100" value="10">
                     </div>
 
-                    <button class="quick-btn primary" onclick="applyBackgroundRemoval()">✨ Удалить фон</button>
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💪 Сила эффекта</span>
+                            <span class="param-value" id="bgStrengthVal">100</span>%
+                        </div>
+                        <input type="range" id="bgStrength" min="0" max="100" value="100">
+                    </div>
+
+                    <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
+
+                    <div class="quick-actions" style="margin-top: 8px;">
+                        <button class="quick-btn danger" onclick="resetBackgroundSection()">↺ Сбросить фон</button>
+                    </div>
 
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
 
@@ -587,12 +598,35 @@
                         <input type="range" id="channelTolerance" min="0" max="50" value="20">
                     </div>
 
-                    <button class="quick-btn primary" onclick="applyChannelRemoval()">✓ Применить удаление</button>
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💪 Сила эффекта</span>
+                            <span class="param-value" id="channelStrengthVal">100</span>%
+                        </div>
+                        <input type="range" id="channelStrength" min="0" max="100" value="100">
+                    </div>
+
+                    <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
+
+                    <div class="quick-actions" style="margin-top: 8px;">
+                        <button class="quick-btn danger" onclick="resetChannelSection()">↺ Сбросить канал</button>
+                    </div>
 
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
 
                     <!-- Удаление по яркости -->
                     <div class="upload-title">⚫⚪ Удаление по яркости</div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Тип удаления</span>
+                        </div>
+                        <select id="luminanceType">
+                            <option value="">— Не активно —</option>
+                            <option value="shadows">⚫ Тени</option>
+                            <option value="highlights">⚪ Блики</option>
+                        </select>
+                    </div>
 
                     <div class="param-group">
                         <div class="param-label">
@@ -602,14 +636,23 @@
                         <input type="range" id="luminanceThreshold" min="10" max="128" value="50">
                     </div>
 
-                    <div class="quick-actions">
-                        <button class="quick-btn" onclick="removeLuminance('shadows')">⚫ Удалить тени</button>
-                        <button class="quick-btn" onclick="removeLuminance('highlights')">⚪ Удалить блики</button>
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💪 Сила эффекта</span>
+                            <span class="param-value" id="luminanceStrengthVal">100</span>%
+                        </div>
+                        <input type="range" id="luminanceStrength" min="0" max="100" value="100">
+                    </div>
+
+                    <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
+
+                    <div class="quick-actions" style="margin-top: 8px;">
+                        <button class="quick-btn danger" onclick="resetLuminanceSection()">↺ Сбросить яркость</button>
                     </div>
 
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
 
-                    <button class="quick-btn danger" onclick="resetTransparency()">↺ Восстановить исходное изображение</button>
+                    <button class="quick-btn danger" onclick="resetAllBackgroundEffects()">↺ Сбросить все эффекты фона</button>
                 </div>
 
                 <!-- ТАБ: Искажения и пикселизация -->
