@@ -53,23 +53,47 @@ function applyPixelation(imageData, blockSize) {
 }
 
 /**
- * Pixel Art с дизерингом (Floyd-Steinberg)
+ * Pixel Art с улучшенным дизерингом
  * @param {ImageData} imageData
- * @param {number} blockSize - размер пикселя
+ * @param {number} blockSize - размер пикселя (1-50)
  * @param {number} colors - количество цветов (2-256)
+ * @param {string} ditherMode - 'floyd-steinberg' | 'atkinson'
  * @returns {ImageData}
  */
-function applyPixelArt(imageData, blockSize, colors) {
+function applyPixelArt(imageData, blockSize, colors, ditherMode) {
     colors = (colors === undefined) ? 16 : colors;
-
-    applyPixelation(imageData, blockSize);
+    ditherMode = ditherMode || 'floyd-steinberg';
 
     const width = imageData.width;
     const height = imageData.height;
     const data = imageData.data;
+
+    // Гамма-коррекция: линеаризация RGB перед обработкой
+    const gamma = 2.2;
+    const invGamma = 1 / gamma;
+
+    // Создаём lookup-таблицы для гамма-коррекции (оптимизация)
+    // gammaTable: sRGB → linear (применяем степень gamma=2.2 для линеаризации)
+    const gammaTable = new Uint8Array(256);
+    // invGammaTable: linear → sRGB (применяем степень invGamma=1/2.2 для обратного кодирования)
+    const invGammaTable = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+        gammaTable[i] = Math.round(Math.pow(i / 255, gamma) * 255);
+        invGammaTable[i] = Math.round(Math.pow(i / 255, invGamma) * 255);
+    }
+
+    // Линеаризуем sRGB → linear (применяем gamma=2.2)
+    for (let i = 0; i < data.length; i += 4) {
+        data[i]     = gammaTable[data[i]];
+        data[i + 1] = gammaTable[data[i + 1]];
+        data[i + 2] = gammaTable[data[i + 2]];
+    }
+
+    // Квантизация цветов с перцептивным округлением
     const levels = Math.max(2, Math.min(256, colors));
     const step = 255 / (levels - 1);
 
+    // СНАЧАЛА дизеринг, ПОТОМ пикселизация
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const idx = (y * width + x) * 4;
@@ -78,23 +102,52 @@ function applyPixelArt(imageData, blockSize, colors) {
             const oldG = data[idx + 1];
             const oldB = data[idx + 2];
 
-            const newR = Math.min(255, Math.round(Math.round(oldR / step) * step));
-            const newG = Math.min(255, Math.round(Math.round(oldG / step) * step));
-            const newB = Math.min(255, Math.round(Math.round(oldB / step) * step));
+            // Перцептивная квантизация (одно округление)
+            const newR = Math.round(oldR / step) * step;
+            const newG = Math.round(oldG / step) * step;
+            const newB = Math.round(oldB / step) * step;
 
-            data[idx]     = newR;
-            data[idx + 1] = newG;
-            data[idx + 2] = newB;
+            data[idx]     = Math.min(255, Math.max(0, newR));
+            data[idx + 1] = Math.min(255, Math.max(0, newG));
+            data[idx + 2] = Math.min(255, Math.max(0, newB));
 
             const errorR = oldR - newR;
             const errorG = oldG - newG;
             const errorB = oldB - newB;
 
-            distributeError(data, width, height, x + 1, y,     errorR, errorG, errorB, 7 / 16);
-            distributeError(data, width, height, x - 1, y + 1, errorR, errorG, errorB, 3 / 16);
-            distributeError(data, width, height, x,     y + 1, errorR, errorG, errorB, 5 / 16);
-            distributeError(data, width, height, x + 1, y + 1, errorR, errorG, errorB, 1 / 16);
+            // Выбор алгоритма дизеринга
+            if (ditherMode === 'atkinson') {
+                // Atkinson dithering (1/8 на 6 соседей, более мягкий)
+                distributeError(data, width, height, x + 1, y,     errorR, errorG, errorB, 1 / 8);
+                distributeError(data, width, height, x + 2, y,     errorR, errorG, errorB, 1 / 8);
+                distributeError(data, width, height, x - 1, y + 1, errorR, errorG, errorB, 1 / 8);
+                distributeError(data, width, height, x,     y + 1, errorR, errorG, errorB, 1 / 8);
+                distributeError(data, width, height, x + 1, y + 1, errorR, errorG, errorB, 1 / 8);
+                distributeError(data, width, height, x,     y + 2, errorR, errorG, errorB, 1 / 8);
+            } else {
+                // Floyd-Steinberg dithering (классический)
+                distributeError(data, width, height, x + 1, y,     errorR, errorG, errorB, 7 / 16);
+                distributeError(data, width, height, x - 1, y + 1, errorR, errorG, errorB, 3 / 16);
+                distributeError(data, width, height, x,     y + 1, errorR, errorG, errorB, 5 / 16);
+                distributeError(data, width, height, x + 1, y + 1, errorR, errorG, errorB, 1 / 16);
+            }
         }
+    }
+
+    // Обратное кодирование: linear → sRGB (применяем invGamma=1/2.2)
+    for (let i = 0; i < data.length; i += 4) {
+        const r = Math.min(255, Math.max(0, data[i]));
+        const g = Math.min(255, Math.max(0, data[i + 1]));
+        const b = Math.min(255, Math.max(0, data[i + 2]));
+
+        data[i]     = invGammaTable[r];
+        data[i + 1] = invGammaTable[g];
+        data[i + 2] = invGammaTable[b];
+    }
+
+    // ПОСЛЕ дизеринга применяем пикселизацию
+    if (blockSize > 1) {
+        applyPixelation(imageData, blockSize);
     }
 
     return imageData;
@@ -116,9 +169,10 @@ function distributeError(data, width, height, x, y, errR, errG, errB, factor) {
     if (x < 0 || x >= width || y < 0 || y >= height) return;
 
     const idx = (y * width + x) * 4;
-    data[idx]     = pixelClamp(data[idx]     + errR * factor);
-    data[idx + 1] = pixelClamp(data[idx + 1] + errG * factor);
-    data[idx + 2] = pixelClamp(data[idx + 2] + errB * factor);
+    data[idx]     = data[idx]     + errR * factor;
+    data[idx + 1] = data[idx + 1] + errG * factor;
+    data[idx + 2] = data[idx + 2] + errB * factor;
+    // Clamp будет выполнен на следующей итерации квантизации
 }
 
 /**
