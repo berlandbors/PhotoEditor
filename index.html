@@ -84,6 +84,7 @@
                     <button class="tab-btn" onclick="switchTab('colormask', this)">🎭 Маски</button>
                     <button class="tab-btn" onclick="switchTab('channels', this)">📺 Каналы</button>
                     <button class="tab-btn" onclick="switchTab('background', this)">🎯 Фон</button>
+                    <button class="tab-btn" onclick="switchTab('distortion', this)">🌀 Искажения</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -606,6 +607,100 @@
 
                     <button class="quick-btn danger" onclick="resetTransparency()">↺ Восстановить исходное изображение</button>
                 </div>
+
+                <!-- ТАБ: Искажения и пикселизация -->
+                <div class="tab-content" id="tab-distortion">
+                    <div class="upload-title">🌀 Искажения слоя <span id="activeLayerNum7">1</span></div>
+
+                    <!-- Выбор типа искажения -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Тип искажения</span>
+                        </div>
+                        <select id="distortionType">
+                            <option value="">— Не выбрано —</option>
+                            <option value="twist">🌀 Закручивание (Twist)</option>
+                            <option value="bulge">🔵 Выпуклость (Bulge)</option>
+                            <option value="pinch">🔴 Вогнутость (Pinch)</option>
+                            <option value="wave-h">🌊 Волна горизонтальная</option>
+                            <option value="wave-v">🌊 Волна вертикальная</option>
+                            <option value="funhouse">🎪 Кривое зеркало</option>
+                            <option value="swirl">🌀 Водоворот (Swirl)</option>
+                        </select>
+                    </div>
+
+                    <!-- Интенсивность -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💪 Интенсивность</span>
+                            <span class="param-value" id="distortIntensityVal">50</span>
+                        </div>
+                        <input type="range" id="distortIntensity" min="0" max="100" value="50">
+                    </div>
+
+                    <!-- Радиус -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>📏 Радиус эффекта</span>
+                            <span class="param-value" id="distortRadiusVal">50%</span>
+                        </div>
+                        <input type="range" id="distortRadius" min="10" max="100" value="50">
+                    </div>
+
+                    <button class="quick-btn primary" onclick="applyDistortionEffect()">✓ Применить искажение</button>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <!-- Пикселизация -->
+                    <div class="upload-title">🎮 Пикселизация / Pixel Art</div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Режим</span>
+                        </div>
+                        <select id="pixelMode">
+                            <option value="mosaic">🧱 Мозаика (простая)</option>
+                            <option value="pixelart">🎮 Pixel Art (с дизерингом)</option>
+                            <option value="retro">👾 Ретро-палитра</option>
+                        </select>
+                    </div>
+
+                    <!-- Размер пикселя -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>📐 Размер пикселя</span>
+                            <span class="param-value" id="pixelSizeVal">4px</span>
+                        </div>
+                        <input type="range" id="pixelSize" min="1" max="50" value="4">
+                    </div>
+
+                    <!-- Количество цветов (для pixel art) -->
+                    <div class="param-group" id="colorCountGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>🎨 Количество цветов</span>
+                            <span class="param-value" id="colorCountVal">16</span>
+                        </div>
+                        <input type="range" id="colorCount" min="2" max="256" value="16">
+                    </div>
+
+                    <!-- Ретро-палитра -->
+                    <div class="param-group" id="retroPaletteGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>Палитра</span>
+                        </div>
+                        <select id="retroPalette">
+                            <option value="gameboy">Game Boy</option>
+                            <option value="nes">NES</option>
+                            <option value="c64">Commodore 64</option>
+                        </select>
+                    </div>
+
+                    <button class="quick-btn primary" onclick="applyPixelationEffect()">✓ Применить пикселизацию</button>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <button class="quick-btn" onclick="resetDistortionEffects()">↺ Сбросить эффекты</button>
+                </div>
             </div>
         </aside>
 
@@ -703,6 +798,8 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/distortion-effects.js"></script>
+    <script src="js/pixelation-effects.js"></script>
     <script src="js/background-removal.js"></script>
     <script src="js/channel-mixer.js"></script>
     <script src="js/color-masks.js"></script>
