@@ -83,14 +83,20 @@ function activateEraser() {
     canvas.style.cursor = 'none';
     canvas.classList.add('eraser-active');
 
-    // Подписаться на события
+    // Подписаться на события мыши
     canvas.addEventListener('mousedown', startErasing);
     canvas.addEventListener('mousemove', continueErasing);
     canvas.addEventListener('mouseup', stopErasing);
     canvas.addEventListener('mouseleave', stopErasing);
 
+    // Подписаться на события тача
+    canvas.addEventListener('touchstart', startErasing, { passive: false });
+    canvas.addEventListener('touchmove', continueErasing, { passive: false });
+    canvas.addEventListener('touchend', stopErasing);
+    canvas.addEventListener('touchcancel', stopErasing);
+
     console.log('[Eraser] Eraser activated, originalImageData saved:', tempCanvas.width, 'x', tempCanvas.height);
-    showHint('Ластик активирован. ЛКМ — стереть, ПКМ — восстановить');
+    showHint('Ластик активирован. ЛКМ/Тап — стереть, ПКМ — восстановить');
 }
 
 /**
@@ -103,10 +109,17 @@ function deactivateEraser() {
     canvas.style.cursor = '';
     canvas.classList.remove('eraser-active');
 
+    // Отписаться от событий мыши
     canvas.removeEventListener('mousedown', startErasing);
     canvas.removeEventListener('mousemove', continueErasing);
     canvas.removeEventListener('mouseup', stopErasing);
     canvas.removeEventListener('mouseleave', stopErasing);
+
+    // Отписаться от событий тача
+    canvas.removeEventListener('touchstart', startErasing);
+    canvas.removeEventListener('touchmove', continueErasing);
+    canvas.removeEventListener('touchend', stopErasing);
+    canvas.removeEventListener('touchcancel', stopErasing);
 
     // Перерисовать без курсора кисти
     render();
@@ -132,9 +145,9 @@ function startErasing(e) {
         eraserState.mode = document.getElementById('eraserMode').value;
     }
 
-    var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var coords = getEraserCoords(e);
+    var x = coords.x;
+    var y = coords.y;
 
     eraserState.lastX = x;
     eraserState.lastY = y;
@@ -159,9 +172,9 @@ function startErasing(e) {
 function continueErasing(e) {
     if (!eraserState.active) return;
 
-    var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var coords = getEraserCoords(e);
+    var x = coords.x;
+    var y = coords.y;
 
     if (!eraserState.isErasing) {
         // Только показываем курсор, не стираем
@@ -477,6 +490,19 @@ function drawBrushCursor(x, y) {
     ctx2d.arc(x, y, 1.5, 0, Math.PI * 2);
     ctx2d.fill();
     ctx2d.restore();
+}
+
+/**
+ * Получить координаты события (мышь или тач) относительно canvas
+ */
+function getEraserCoords(e) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    var clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
 }
 
 /**

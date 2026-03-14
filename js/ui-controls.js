@@ -9,6 +9,20 @@ let isResizing = false;
 let startX = 0;
 let startWidth = 0;
 
+// ===== УТИЛИТА DEBOUNCE =====
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction() {
+        const args = arguments;
+        const later = function() {
+            clearTimeout(timeout);
+            func.apply(this, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // ===== ПЕРЕКЛЮЧЕНИЕ ТАБОВ =====
 function switchTab(tabName, element) {
     currentTab = tabName;
@@ -791,6 +805,119 @@ function initBackgroundTab() {
 }
 
 // Инициализация вкладки искажений и пикселизации
+const applyDistortionLive = debounce(function() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.originalImage) return;
+
+    var type = document.getElementById('distortionType').value;
+    if (!type) {
+        layer.image = layer.originalImage;
+        render();
+        return;
+    }
+
+    showProcessing('Применение искажения...');
+
+    var intensity = parseInt(document.getElementById('distortIntensity').value);
+    var radius = parseInt(document.getElementById('distortRadius').value) / 100;
+
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.originalImage.width;
+    tempCanvas.height = layer.originalImage.height;
+
+    tempCtx.drawImage(layer.originalImage, 0, 0);
+    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    switch (type) {
+        case 'twist':
+            imageData = applyTwist(imageData, intensity, radius);
+            break;
+        case 'bulge':
+            imageData = applyBulge(imageData, intensity, radius);
+            break;
+        case 'pinch':
+            imageData = applyBulge(imageData, -intensity, radius);
+            break;
+        case 'wave-h':
+            imageData = applyWave(imageData, intensity * 0.5, 30, 'horizontal');
+            break;
+        case 'wave-v':
+            imageData = applyWave(imageData, intensity * 0.5, 30, 'vertical');
+            break;
+        case 'ripple':
+            imageData = applyRadialRipple(imageData, intensity, 5);
+            break;
+        case 'funhouse':
+            imageData = applyFunhouse(imageData, intensity);
+            break;
+        case 'swirl':
+            imageData = applySwirl(imageData, intensity, radius);
+            break;
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        hideProcessing();
+        showHint('Искажение применено');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}, 300);
+
+const applyPixelationLive = debounce(function() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.originalImage) return;
+
+    var mode = document.getElementById('pixelMode').value;
+    if (mode === 'none') {
+        layer.image = layer.originalImage;
+        render();
+        return;
+    }
+
+    showProcessing('Применение пикселизации...');
+
+    var blockSize = parseInt(document.getElementById('pixelSize').value);
+    var colorCount = parseInt(document.getElementById('colorCount').value);
+    var palette = document.getElementById('retroPalette').value;
+
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.originalImage.width;
+    tempCanvas.height = layer.originalImage.height;
+
+    tempCtx.drawImage(layer.originalImage, 0, 0);
+    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    switch (mode) {
+        case 'mosaic':
+            imageData = applyPixelation(imageData, blockSize);
+            break;
+        case 'pixelart':
+            imageData = applyPixelArt(imageData, blockSize, colorCount);
+            break;
+        case 'retro':
+            imageData = applyPixelation(imageData, blockSize);
+            imageData = applyRetroPalette(imageData, palette);
+            break;
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        hideProcessing();
+        showHint('Пикселизация применена');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}, 300);
+
 function initDistortionTab() {
     // Показать/скрыть группы параметров при смене режима пикселизации
     document.getElementById('pixelMode').addEventListener('change', function(e) {
@@ -807,28 +934,41 @@ function initDistortionTab() {
             colorGroup.style.display = 'none';
             paletteGroup.style.display = 'none';
         }
+
+        // Динамическое применение при смене режима
+        applyPixelationLive();
     });
 
-    // Ползунки искажений
+    // Динамическое применение искажений при изменении типа
+    document.getElementById('distortionType').addEventListener('change', applyDistortionLive);
+
+    // Ползунки искажений с динамическим применением
     initSlider('distortIntensity', function() {
         document.getElementById('distortIntensityVal').textContent =
             document.getElementById('distortIntensity').value;
+        applyDistortionLive();
     });
 
     initSlider('distortRadius', function() {
         document.getElementById('distortRadiusVal').textContent =
             document.getElementById('distortRadius').value + '%';
+        applyDistortionLive();
     });
 
     initSlider('pixelSize', function() {
         document.getElementById('pixelSizeVal').textContent =
             document.getElementById('pixelSize').value + 'px';
+        applyPixelationLive();
     });
 
     initSlider('colorCount', function() {
         document.getElementById('colorCountVal').textContent =
             document.getElementById('colorCount').value;
+        applyPixelationLive();
     });
+
+    // Динамическое применение при смене палитры
+    document.getElementById('retroPalette').addEventListener('change', applyPixelationLive);
 }
 
 // Применить искажение к активному слою
