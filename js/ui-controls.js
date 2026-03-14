@@ -707,6 +707,7 @@ function removeLuminance(type) {
     if (!layer || !layer.image) return;
 
     const threshold = parseInt(document.getElementById('luminanceThreshold').value);
+    const feather = parseInt(document.getElementById('bgFeather').value);
 
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -716,7 +717,7 @@ function removeLuminance(type) {
     tempCtx.drawImage(layer.image, 0, 0);
     let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
 
-    imageData = removeLuminanceRange(imageData, type, threshold);
+    imageData = removeLuminanceRange(imageData, type, threshold, feather);
 
     tempCtx.putImageData(imageData, 0, 0);
 
@@ -871,6 +872,9 @@ function applyDistortionEffect() {
         case 'wave-v':
             imageData = applyWave(imageData, intensity * 0.5, 30, 'vertical');
             break;
+        case 'ripple':
+            imageData = applyRadialRipple(imageData, intensity, 5);
+            break;
         case 'funhouse':
             imageData = applyFunhouse(imageData, intensity);
             break;
@@ -959,9 +963,12 @@ function toggleEraser() {
         document.getElementById('toggleEraser').classList.add('primary');
     } else {
         activateEraser();
-        document.getElementById('toggleEraser').textContent = '✖ Деактивировать ластик';
-        document.getElementById('toggleEraser').classList.remove('primary');
-        document.getElementById('toggleEraser').classList.add('danger');
+        // Обновить кнопку только если ластик успешно активировался
+        if (eraserState.active) {
+            document.getElementById('toggleEraser').textContent = '✖ Деактивировать ластик';
+            document.getElementById('toggleEraser').classList.remove('primary');
+            document.getElementById('toggleEraser').classList.add('danger');
+        }
     }
 }
 

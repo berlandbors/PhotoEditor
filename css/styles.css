@@ -1289,9 +1289,9 @@ input[type="range"]::-moz-range-thumb {
 
 /* ==================== Ластик ==================== */
 
-/* Курсор ластика */
+/* Курсор ластика — скрыть стандартный курсор, вместо него рисуем кисть на canvas */
 #canvas.eraser-active {
-    cursor: crosshair !important;
+    cursor: none !important;
 }
 
 /* Кнопка деактивации ластика */
