@@ -982,6 +982,10 @@ function resetEraser() {
     var newImg = new Image();
     newImg.onload = function() {
         layer.image = newImg;
+        // Сбросить editCanvas
+        eraserState.editCanvas = null;
+        eraserState.editCtx = null;
+        eraserState.editLayerIndex = -1;
         render();
     };
     newImg.src = tempCanvas.toDataURL('image/png');
