@@ -220,11 +220,13 @@ function applyErase(x, y) {
 
     tempCtx.putImageData(imageData, 0, 0);
 
-    // Обновить изображение слоя
+    // Обновить изображение слоя через onload для корректного рендера
     var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+    };
     newImg.src = tempCanvas.toDataURL('image/png');
-    layer.image = newImg;
-    render();
 }
 
 /**
@@ -256,7 +258,7 @@ function applySmartErase(x, y) {
     var tolerance = parseInt(document.getElementById('smartEraseTolerance').value);
 
     // Удалить похожие цвета в радиусе кисти
-    var brushRadius = eraserState.brushSize;
+    var brushRadius = eraserState.brushSize / 2;
     for (var dy = -brushRadius; dy <= brushRadius; dy++) {
         for (var dx = -brushRadius; dx <= brushRadius; dx++) {
             var px = layerX + dx;
@@ -283,9 +285,11 @@ function applySmartErase(x, y) {
     tempCtx.putImageData(imageData, 0, 0);
 
     var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+    };
     newImg.src = tempCanvas.toDataURL('image/png');
-    layer.image = newImg;
-    render();
 }
 
 /**
