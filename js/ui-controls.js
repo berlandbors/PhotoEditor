@@ -959,8 +959,11 @@ const applyPixelationLive = debounce(function() {
         case 'mosaic':
             imageData = applyPixelation(imageData, blockSize);
             break;
-        case 'pixelart':
-            imageData = applyPixelArt(imageData, blockSize, colorCount);
+        case 'pixelart-floyd':
+            imageData = applyPixelArt(imageData, blockSize, colorCount, 'floyd-steinberg');
+            break;
+        case 'pixelart-atkinson':
+            imageData = applyPixelArt(imageData, blockSize, colorCount, 'atkinson');
             break;
         case 'retro':
             imageData = applyPixelation(imageData, blockSize);
@@ -986,7 +989,7 @@ function initDistortionTab() {
         var colorGroup = document.getElementById('colorCountGroup');
         var paletteGroup = document.getElementById('retroPaletteGroup');
 
-        if (e.target.value === 'pixelart') {
+        if (e.target.value === 'pixelart-floyd' || e.target.value === 'pixelart-atkinson') {
             colorGroup.style.display = 'block';
             paletteGroup.style.display = 'none';
         } else if (e.target.value === 'retro') {
@@ -1121,8 +1124,11 @@ function applyPixelationEffect() {
         case 'mosaic':
             imageData = applyPixelation(imageData, blockSize);
             break;
-        case 'pixelart':
-            imageData = applyPixelArt(imageData, blockSize, colorCount);
+        case 'pixelart-floyd':
+            imageData = applyPixelArt(imageData, blockSize, colorCount, 'floyd-steinberg');
+            break;
+        case 'pixelart-atkinson':
+            imageData = applyPixelArt(imageData, blockSize, colorCount, 'atkinson');
             break;
         case 'retro':
             imageData = applyPixelation(imageData, blockSize);
