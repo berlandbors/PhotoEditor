@@ -60,10 +60,12 @@ function removeBackgroundByColor(imageData, options) {
 
         // Если близко к целевому цвету
         if (distance < tolerance) {
-            // Плавный переход (feather)
-            if (distance > tolerance - feather) {
-                const alpha = (distance - (tolerance - feather)) / feather;
-                data[i + 3] = Math.round(255 * alpha);
+            // Плавный переход (feather) с нелинейной интерполяцией (smoothstep)
+            if (feather > 0 && distance > tolerance - feather) {
+                const t = (distance - (tolerance - feather)) / feather;
+                // Smoothstep: 3*t^2 - 2*t^3 для более естественного перехода
+                const smoothT = t * t * (3 - 2 * t);
+                data[i + 3] = Math.round(255 * smoothT);
             } else {
                 data[i + 3] = 0; // Полностью прозрачный
             }
