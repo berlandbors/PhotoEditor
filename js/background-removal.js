@@ -7,6 +7,12 @@
 // Шаг квантования цвета при группировке пикселей краёв
 const COLOR_GROUPING_FACTOR = 10;
 
+// Минимальное значение feather, при котором применяется дополнительное гауссово размытие
+const MIN_FEATHER_FOR_BLUR = 2;
+
+// Коэффициент перевода feather в радиус гауссового размытия
+const FEATHER_TO_BLUR_RATIO = 8;
+
 /**
  * Конвертировать RGB в HSL (hue в градусах 0-360)
  * @param {number} r
@@ -73,8 +79,8 @@ function removeBackgroundByColor(imageData, options) {
     }
 
     // Гауссово размытие альфа-канала для дополнительного смягчения краёв
-    if (feather > 2) {
-        const blurRadius = Math.max(1, Math.round(feather / 8));
+    if (feather > MIN_FEATHER_FOR_BLUR) {
+        const blurRadius = Math.max(1, Math.round(feather / FEATHER_TO_BLUR_RATIO));
         applyGaussianBlurToAlpha(imageData, blurRadius);
     }
 
@@ -259,8 +265,8 @@ function removeLuminanceRange(imageData, type, threshold, feather) {
     }
 
     // Гауссово размытие альфа-канала для смягчения краёв
-    if (feather > 2) {
-        const blurRadius = Math.max(1, Math.round(feather / 8));
+    if (feather > MIN_FEATHER_FOR_BLUR) {
+        const blurRadius = Math.max(1, Math.round(feather / FEATHER_TO_BLUR_RATIO));
         applyGaussianBlurToAlpha(imageData, blurRadius);
     }
 

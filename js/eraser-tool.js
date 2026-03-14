@@ -33,7 +33,10 @@ function initEditCanvas() {
     if (eraserState.editLayerIndex !== activeLayerIndex || !eraserState.editCanvas) {
         var imgW = layer.image.naturalWidth || layer.image.width;
         var imgH = layer.image.naturalHeight || layer.image.height;
-        if (!imgW || !imgH) return false;
+        if (!imgW || !imgH) {
+            showHint('Изображение слоя не готово, попробуйте ещё раз');
+            return false;
+        }
 
         var ec = document.createElement('canvas');
         var ectx = ec.getContext('2d');
