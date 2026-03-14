@@ -104,6 +104,20 @@ function showHint(text) {
     }, 2000);
 }
 
+function showProcessing(message) {
+    clearTimeout(hintTimeout);
+    const hint = document.getElementById('hint');
+    hint.textContent = message || 'Обработка...';
+    hint.classList.remove('hidden');
+    hint.style.background = 'rgba(255, 165, 0, 0.95)';
+}
+
+function hideProcessing() {
+    const hint = document.getElementById('hint');
+    hint.classList.add('hidden');
+    hint.style.background = '';
+}
+
 // Инициализация модулей
 initCanvasHandlers();
 initUIControls();
