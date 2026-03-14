@@ -85,6 +85,7 @@
                     <button class="tab-btn" onclick="switchTab('channels', this)">📺 Каналы</button>
                     <button class="tab-btn" onclick="switchTab('background', this)">🎯 Фон</button>
                     <button class="tab-btn" onclick="switchTab('distortion', this)">🌀 Искажения</button>
+                    <button class="tab-btn" onclick="switchTab('eraser', this)">🖌️ Ластик</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -702,6 +703,99 @@
                     <button class="quick-btn" onclick="resetDistortionEffects()">↺ Сбросить эффекты</button>
                 </div>
             </div>
+
+                <!-- ТАБ: Ластик -->
+                <div class="tab-content" id="tab-eraser">
+                    <div class="upload-title">🖌️ Ластик слоя <span id="activeLayerNum8">1</span></div>
+
+                    <!-- Активация ластика -->
+                    <div class="param-group">
+                        <button class="quick-btn primary" id="toggleEraser" onclick="toggleEraser()">
+                            ✓ Активировать ластик
+                        </button>
+                    </div>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <!-- Режим работы -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>Режим</span>
+                        </div>
+                        <select id="eraserMode">
+                            <option value="erase">⚪ Стирание (прозрачность)</option>
+                            <option value="restore">🔵 Восстановление</option>
+                            <option value="smart">🧠 Умный ластик (по цвету)</option>
+                        </select>
+                    </div>
+
+                    <!-- Размер кисти -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🖌️ Размер кисти</span>
+                            <span class="param-value" id="eraserSizeVal">20px</span>
+                        </div>
+                        <input type="range" id="eraserSize" min="1" max="200" value="20">
+                    </div>
+
+                    <!-- Жёсткость кисти -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💎 Жёсткость краёв</span>
+                            <span class="param-value" id="eraserHardnessVal">0%</span>
+                        </div>
+                        <input type="range" id="eraserHardness" min="0" max="100" value="0">
+                    </div>
+
+                    <!-- Прозрачность кисти -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>👻 Прозрачность кисти</span>
+                            <span class="param-value" id="eraserOpacityVal">100%</span>
+                        </div>
+                        <input type="range" id="eraserOpacity" min="10" max="100" value="100">
+                    </div>
+
+                    <!-- Толерантность умного ластика -->
+                    <div class="param-group" id="smartEraseGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>🎯 Толерантность цвета</span>
+                            <span class="param-value" id="smartEraseToleranceVal">30</span>
+                        </div>
+                        <input type="range" id="smartEraseTolerance" min="1" max="100" value="30">
+                    </div>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <!-- История действий -->
+                    <div class="upload-title">⏱️ История</div>
+
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="undoEraser()" title="Ctrl+Z">
+                            ↶ Отменить
+                        </button>
+                        <button class="quick-btn" onclick="redoEraser()" title="Ctrl+Shift+Z">
+                            ↷ Повторить
+                        </button>
+                    </div>
+
+                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
+
+                    <button class="quick-btn danger" onclick="resetEraser()">
+                        ↺ Сбросить все изменения
+                    </button>
+
+                    <!-- Подсказки -->
+                    <div style="margin-top: 12px; font-size: 0.78rem; color: rgba(255,255,255,0.6); line-height: 1.6;">
+                        <strong>Горячие клавиши:</strong><br>
+                        • ЛКМ — стирание<br>
+                        • ПКМ — восстановление<br>
+                        • [ / ] — изменить размер<br>
+                        • E — переключить режим<br>
+                        • Ctrl+Z — отменить<br>
+                        • Ctrl+Shift+Z — повторить
+                    </div>
+                </div>
         </aside>
 
         <button class="toggle-sidebar" onclick="toggleSidebar()">
@@ -798,6 +892,7 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <script src="js/eraser-tool.js"></script>
     <script src="js/distortion-effects.js"></script>
     <script src="js/pixelation-effects.js"></script>
     <script src="js/background-removal.js"></script>

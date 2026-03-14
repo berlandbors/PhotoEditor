@@ -1261,3 +1261,21 @@ input[type="range"]::-moz-range-thumb {
     border-color: #667eea;
     color: white;
 }
+
+/* ==================== Ластик ==================== */
+
+/* Курсор ластика */
+#canvas.eraser-active {
+    cursor: crosshair !important;
+}
+
+/* Кнопка деактивации ластика */
+#toggleEraser.danger {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border-color: transparent;
+    color: #fff;
+}
+
+#toggleEraser.danger:hover {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
