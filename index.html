@@ -834,6 +834,12 @@
                     <button class="toolbar-btn" onclick="centerCanvas()"><span class="emoji">🎯</span> <span>Центр</span></button>
                 </div>
 
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button class="toolbar-btn focus-mode-toggle-btn" id="focusModeBtn" onclick="toggleFocusMode()"><span class="emoji">🎯</span> <span>Focus Mode</span></button>
+                </div>
+
                 <div class="spacer"></div>
 
                 <div class="toolbar-group">
@@ -892,6 +898,78 @@
 
     <div class="hint hidden" id="hint">Совет</div>
 
+    <!-- Focus Mode: Floating Layer Panel -->
+    <div class="floating-layers-panel" id="floatingLayersPanel"></div>
+
+    <!-- Focus Mode: Mini Toolbar -->
+    <div class="focus-mode-toolbar" id="focusModeToolbar">
+        <button class="focus-tool-btn" onclick="zoomCanvasBy(-0.2)" title="Уменьшить масштаб">🔍−</button>
+        <button class="focus-tool-btn" onclick="resetCanvasZoom()" title="Сбросить масштаб">100%</button>
+        <button class="focus-tool-btn" onclick="zoomCanvasBy(0.2)" title="Увеличить масштаб">🔍+</button>
+        <button class="focus-tool-btn" onclick="centerCanvas()" title="Центрировать холст">🎯</button>
+        <button class="focus-tool-btn" onclick="openSettingsModal()" title="Настройки слоя">⚙️</button>
+        <button class="focus-tool-btn focus-exit-btn" onclick="exitFocusMode()" title="Выйти из Focus Mode">✖️</button>
+    </div>
+
+    <!-- Focus Mode: Settings Modal -->
+    <div class="focus-settings-modal" id="focusSettingsModal">
+        <div class="focus-settings-content">
+            <div class="focus-settings-title">⚙️ Настройки слоя</div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>👻 Прозрачность</span>
+                    <span id="focusOpacityVal">100%</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusOpacity" min="0" max="100" value="100">
+            </div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>🔍 Масштаб</span>
+                    <span id="focusScaleVal">100%</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusScale" min="10" max="300" value="100">
+            </div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>🔄 Поворот</span>
+                    <span id="focusRotationVal">0°</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusRotation" min="-180" max="180" value="0">
+            </div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>☀️ Яркость</span>
+                    <span id="focusBrightnessVal">0</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusBrightness" min="-100" max="100" value="0">
+            </div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>🎭 Контраст</span>
+                    <span id="focusContrastVal">0</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusContrast" min="-100" max="100" value="0">
+            </div>
+
+            <div class="focus-setting-row">
+                <div class="focus-setting-label">
+                    <span>🌈 Насыщенность</span>
+                    <span id="focusSaturationVal">0</span>
+                </div>
+                <input type="range" class="focus-setting-slider" id="focusSaturation" min="-100" max="100" value="0">
+            </div>
+
+            <div class="focus-settings-buttons">
+                <button class="focus-settings-close-btn" onclick="closeSettingsModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/eraser-tool.js"></script>
     <script src="js/distortion-effects.js"></script>
     <script src="js/pixelation-effects.js"></script>
@@ -903,6 +981,7 @@
     <script src="js/filter-presets.js"></script>
     <script src="js/layer-manager.js"></script>
     <script src="js/ui-controls.js"></script>
+    <script src="js/focus-mode.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

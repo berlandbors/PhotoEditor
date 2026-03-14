@@ -1396,3 +1396,317 @@ input[type="range"]::-moz-range-thumb {
         font-size: 0.75em;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Focus Mode
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Hide sidebar and toggle button when focus mode is active */
+.sidebar.hidden-for-focus,
+.toggle-sidebar.hidden-for-focus {
+    display: none !important;
+}
+
+/* Expand canvas workspace to full width */
+.main-container.focus-mode-active .workspace {
+    width: 100%;
+}
+
+/* ── Floating Layer Panel ────────────────────────────────────── */
+
+.floating-layers-panel {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 80px;
+    max-height: 70vh;
+    background: rgba(40, 40, 40, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 12px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    /* Hidden by default */
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.floating-layers-panel.visible {
+    display: block;
+    opacity: 1;
+    pointer-events: all;
+}
+
+.floating-layers-panel.auto-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.floating-layer-card {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 10px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    background: #333;
+}
+
+.floating-layer-card:last-child {
+    margin-bottom: 0;
+}
+
+.floating-layer-card.active {
+    border-color: #0078d4;
+    box-shadow: 0 0 10px rgba(0, 120, 212, 0.5);
+}
+
+.floating-layer-card.layer-hidden {
+    opacity: 0.4;
+}
+
+.floating-layer-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.layer-quick-actions {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    padding: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.floating-layer-card:hover .layer-quick-actions {
+    opacity: 1;
+}
+
+.layer-eye-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 0.9em;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+}
+
+.layer-eye-btn:hover {
+    transform: scale(1.2);
+}
+
+/* ── Focus Mode Mini Toolbar ─────────────────────────────────── */
+
+.focus-mode-toolbar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(40, 40, 40, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 30px;
+    padding: 10px 20px;
+    display: none;
+    gap: 10px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    transition: opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.focus-mode-toolbar.visible {
+    display: flex;
+    opacity: 1;
+    pointer-events: all;
+}
+
+.focus-mode-toolbar.auto-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.focus-tool-btn {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.focus-tool-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.focus-exit-btn:hover {
+    background: rgba(220, 50, 50, 0.5);
+}
+
+/* ── Focus Mode Settings Modal ───────────────────────────────── */
+
+.focus-settings-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.focus-settings-modal.visible {
+    display: flex;
+}
+
+.focus-settings-content {
+    background: rgba(40, 40, 40, 0.98);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.focus-settings-title {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #fff;
+}
+
+.focus-setting-row {
+    margin-bottom: 16px;
+}
+
+.focus-setting-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+    color: #ccc;
+}
+
+.focus-setting-slider {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    cursor: pointer;
+}
+
+.focus-setting-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0078d4;
+    cursor: pointer;
+}
+
+.focus-setting-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0078d4;
+    cursor: pointer;
+    border: none;
+}
+
+.focus-settings-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+.focus-settings-close-btn {
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background 0.2s;
+}
+
+.focus-settings-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Focus Mode Toggle Button highlight ──────────────────────── */
+
+.focus-mode-toggle-btn {
+    transition: background 0.2s, color 0.2s;
+}
+
+.focus-mode-toggle-btn.active {
+    background: #0078d4;
+    color: #fff;
+}
+
+/* ── Mobile responsive adjustments ──────────────────────────── */
+
+@media (max-width: 600px) {
+    .floating-layers-panel {
+        left: 10px;
+        width: 70px;
+        padding: 8px;
+    }
+
+    .floating-layer-card {
+        width: 54px;
+        height: 54px;
+    }
+
+    .focus-mode-toolbar {
+        padding: 8px 12px;
+        gap: 6px;
+        bottom: 10px;
+    }
+
+    .focus-tool-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1em;
+    }
+}
