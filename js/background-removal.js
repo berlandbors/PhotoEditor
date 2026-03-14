@@ -43,7 +43,7 @@ function rgbToHSL(r, g, b) {
 /**
  * Удалить фон по цветовому диапазону (Chroma Key)
  * @param {ImageData} imageData
- * @param {Object} options - { targetColor: {r,g,b}, tolerance, feather }
+ * @param {Object} options - { targetColor: {r,g,b}, tolerance, feather, strength }
  * @returns {ImageData}
  */
 function removeBackgroundByColor(imageData, options) {
@@ -51,11 +51,13 @@ function removeBackgroundByColor(imageData, options) {
     const targetColor = options.targetColor || { r: 0, g: 255, b: 0 };
     const tolerance = options.tolerance || 30;
     const feather = options.feather || 0;
+    const strength = options.strength !== undefined ? options.strength : 1;
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
+        const originalAlpha = data[i + 3];
 
         // Евклидово расстояние до целевого цвета
         const distance = Math.sqrt(
@@ -66,15 +68,18 @@ function removeBackgroundByColor(imageData, options) {
 
         // Если близко к целевому цвету
         if (distance < tolerance) {
+            let targetAlpha;
             // Плавный переход (feather) с нелинейной интерполяцией (smoothstep)
             if (feather > 0 && distance > tolerance - feather) {
                 const t = (distance - (tolerance - feather)) / feather;
                 // Smoothstep: 3*t^2 - 2*t^3 для более естественного перехода
                 const smoothT = t * t * (3 - 2 * t);
-                data[i + 3] = Math.round(255 * smoothT);
+                targetAlpha = Math.round(255 * smoothT);
             } else {
-                data[i + 3] = 0; // Полностью прозрачный
+                targetAlpha = 0; // Полностью прозрачный
             }
+            // Интерполируем с учётом силы эффекта
+            data[i + 3] = Math.round(originalAlpha + (targetAlpha - originalAlpha) * strength);
         }
     }
 
@@ -152,13 +157,14 @@ function applyGaussianBlurToAlpha(imageData, radius) {
  * @param {ImageData} imageData
  * @param {string} channel - 'red', 'green', 'blue', 'yellow', 'orange', 'cyan', 'magenta', 'pink'
  * @param {string} mode - 'transparent' | 'replace' | 'desaturate'
- * @param {Object} options - { tolerance, replacementColor }
+ * @param {Object} options - { tolerance, replacementColor, strength }
  */
 function removeColorChannel(imageData, channel, mode, options) {
     options = options || {};
     const data = imageData.data;
     const tolerance = options.tolerance || 20;
     const replacementColor = options.replacementColor || { r: 255, g: 255, b: 255 };
+    const strength = options.strength !== undefined ? options.strength : 1;
 
     // HSL диапазоны для каждого канала (hue в градусах)
     const channelRanges = {
@@ -198,20 +204,20 @@ function removeColorChannel(imageData, channel, mode, options) {
         if (inRange && s > 15) {
             switch (mode) {
                 case 'transparent':
-                    data[i + 3] = 0;
+                    data[i + 3] = Math.round(data[i + 3] * (1 - strength));
                     break;
 
                 case 'replace':
-                    data[i]     = replacementColor.r;
-                    data[i + 1] = replacementColor.g;
-                    data[i + 2] = replacementColor.b;
+                    data[i]     = Math.round(r + (replacementColor.r - r) * strength);
+                    data[i + 1] = Math.round(g + (replacementColor.g - g) * strength);
+                    data[i + 2] = Math.round(b + (replacementColor.b - b) * strength);
                     break;
 
                 case 'desaturate': {
                     const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-                    data[i]     = gray;
-                    data[i + 1] = gray;
-                    data[i + 2] = gray;
+                    data[i]     = Math.round(r + (gray - r) * strength);
+                    data[i + 1] = Math.round(g + (gray - g) * strength);
+                    data[i + 2] = Math.round(b + (gray - b) * strength);
                     break;
                 }
             }
@@ -227,39 +233,46 @@ function removeColorChannel(imageData, channel, mode, options) {
  * @param {string} type - 'shadows' | 'highlights'
  * @param {number} threshold - порог яркости (0-255)
  * @param {number} feather - размытие краёв (0-100)
+ * @param {number} strength - сила эффекта (0-1)
  */
-function removeLuminanceRange(imageData, type, threshold, feather) {
+function removeLuminanceRange(imageData, type, threshold, feather, strength) {
     threshold = threshold || 50;
     feather = feather || 0;
+    strength = strength !== undefined ? strength : 1;
     const data = imageData.data;
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
+        const originalAlpha = data[i + 3];
 
         const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
 
         if (type === 'shadows') {
             if (luminance < threshold) {
+                let targetAlpha;
                 if (feather > 0 && luminance > threshold - feather) {
                     const t = (luminance - (threshold - feather)) / feather;
                     const smoothT = t * t * (3 - 2 * t);
-                    data[i + 3] = Math.round(data[i + 3] * smoothT);
+                    targetAlpha = Math.round(originalAlpha * smoothT);
                 } else {
-                    data[i + 3] = 0;
+                    targetAlpha = 0;
                 }
+                data[i + 3] = Math.round(originalAlpha + (targetAlpha - originalAlpha) * strength);
             }
         } else if (type === 'highlights') {
             const invThreshold = 255 - threshold;
             if (luminance > invThreshold) {
+                let targetAlpha;
                 if (feather > 0 && luminance < invThreshold + feather) {
                     const t = (luminance - invThreshold) / feather;
                     const smoothT = t * t * (3 - 2 * t);
-                    data[i + 3] = Math.round(data[i + 3] * (1 - smoothT));
+                    targetAlpha = Math.round(originalAlpha * (1 - smoothT));
                 } else {
-                    data[i + 3] = 0;
+                    targetAlpha = 0;
                 }
+                data[i + 3] = Math.round(originalAlpha + (targetAlpha - originalAlpha) * strength);
             }
         }
     }
@@ -370,7 +383,7 @@ function findDominantBackgroundColor(imageData) {
 /**
  * Автоматическое удаление фона (комбинация методов)
  * @param {ImageData} imageData
- * @param {Object} options - { tolerance, feather }
+ * @param {Object} options - { tolerance, feather, strength }
  */
 function autoRemoveBackground(imageData, options) {
     options = options || {};
@@ -382,6 +395,7 @@ function autoRemoveBackground(imageData, options) {
     return removeBackgroundByColor(imageData, {
         targetColor: backgroundColor,
         tolerance: options.tolerance || 40,
-        feather: options.feather || 10
+        feather: options.feather || 10,
+        strength: options.strength !== undefined ? options.strength : 1
     });
 }

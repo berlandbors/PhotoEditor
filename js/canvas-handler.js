@@ -95,6 +95,44 @@ function applyFiltersToImage(layer, imageOverride) {
         data = imageData.data;
     }
 
+    // Применяем удаление фона (неразрушающее)
+    if (layer.backgroundRemoval) {
+        const bgr = layer.backgroundRemoval;
+        if (bgr.mode === 'auto') {
+            imageData = autoRemoveBackground(imageData, {
+                tolerance: bgr.tolerance,
+                feather: bgr.feather,
+                strength: bgr.strength / 100
+            });
+        } else if (bgr.mode === 'color') {
+            imageData = removeBackgroundByColor(imageData, {
+                targetColor: bgr.targetColor,
+                tolerance: bgr.tolerance,
+                feather: bgr.feather,
+                strength: bgr.strength / 100
+            });
+        }
+        data = imageData.data;
+    }
+
+    // Применяем удаление цветового канала (неразрушающее)
+    if (layer.channelRemoval && layer.channelRemoval.channel) {
+        const cr = layer.channelRemoval;
+        imageData = removeColorChannel(imageData, cr.channel, cr.mode, {
+            tolerance: cr.tolerance,
+            replacementColor: cr.replacementColor,
+            strength: cr.strength / 100
+        });
+        data = imageData.data;
+    }
+
+    // Применяем удаление по яркости (неразрушающее)
+    if (layer.luminanceRemoval && layer.luminanceRemoval.type) {
+        const lr = layer.luminanceRemoval;
+        imageData = removeLuminanceRange(imageData, lr.type, lr.threshold, lr.feather, lr.strength / 100);
+        data = imageData.data;
+    }
+
     // Применяем Channel Mixer
     if (layer.channelMixer) {
         imageData = applyChannelMixer(imageData, layer.channelMixer);
