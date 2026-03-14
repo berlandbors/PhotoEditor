@@ -40,6 +40,14 @@ function switchTab(tabName, element) {
     document.getElementById(`tab-${tabName}`).classList.add('active');
 }
 
+// ===== ПРОКРУТКА К ВКЛАДКАМ =====
+function scrollToTabs() {
+    const tabs = document.querySelector('.layer-tabs');
+    if (tabs) {
+        tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // ===== МАСШТАБИРОВАНИЕ CANVAS =====
 function zoomCanvasBy(delta) {
     canvasZoom = Math.max(0.25, Math.min(3, canvasZoom + delta));
