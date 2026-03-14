@@ -464,6 +464,8 @@ function startDrag(e) {
     if (activeLayerIndex < 0 || !layers[activeLayerIndex] || !layers[activeLayerIndex].image) return;
     if (layers[activeLayerIndex].locked) return;
     if (e.touches && e.touches.length > 1) return;
+    // Не перетаскивать слой, если активен ластик
+    if (typeof eraserState !== 'undefined' && eraserState.active) return;
     e.preventDefault();
     
     const coords = getCoords(e);

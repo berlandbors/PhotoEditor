@@ -14,10 +14,34 @@ var eraserState = {
     lastX: 0,
     lastY: 0,
     originalImageData: null, // Резервная копия для восстановления
+    editCanvas: null,        // Постоянный canvas для синхронного редактирования
+    editCtx: null,           // Контекст editCanvas
+    editLayerIndex: -1,      // Индекс слоя, к которому привязан editCanvas
     history: [],             // История изменений
     historyIndex: -1,
     maxHistory: 20
 };
+
+/**
+ * Инициализировать (или обновить) editCanvas из текущего layer.image
+ */
+function initEditCanvas() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) return false;
+
+    // Пересоздаём canvas если слой сменился или ещё не создан
+    if (eraserState.editLayerIndex !== activeLayerIndex || !eraserState.editCanvas) {
+        var ec = document.createElement('canvas');
+        var ectx = ec.getContext('2d');
+        ec.width = layer.image.naturalWidth || layer.image.width;
+        ec.height = layer.image.naturalHeight || layer.image.height;
+        ectx.drawImage(layer.image, 0, 0);
+        eraserState.editCanvas = ec;
+        eraserState.editCtx = ectx;
+        eraserState.editLayerIndex = activeLayerIndex;
+    }
+    return true;
+}
 
 /**
  * Активировать инструмент ластика
@@ -30,11 +54,16 @@ function activateEraser() {
     if (layer && layer.image) {
         var tempCanvas = document.createElement('canvas');
         var tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = layer.image.width;
-        tempCanvas.height = layer.image.height;
+        tempCanvas.width = layer.image.naturalWidth || layer.image.width;
+        tempCanvas.height = layer.image.naturalHeight || layer.image.height;
         tempCtx.drawImage(layer.image, 0, 0);
         eraserState.originalImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
     }
+
+    // Сбросить editCanvas — он будет инициализирован при первом штрихе
+    eraserState.editCanvas = null;
+    eraserState.editCtx = null;
+    eraserState.editLayerIndex = -1;
 
     // Изменить курсор
     canvas.style.cursor = 'crosshair';
@@ -77,6 +106,7 @@ function startErasing(e) {
     if (!eraserState.active) return;
 
     e.preventDefault();
+    e.stopPropagation(); // Предотвратить конфликт с перетаскиванием слоя
     eraserState.isErasing = true;
 
     // ПКМ = восстановление
@@ -87,11 +117,14 @@ function startErasing(e) {
     }
 
     var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) / canvasZoom;
-    var y = (e.clientY - rect.top) / canvasZoom;
+    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
     eraserState.lastX = x;
     eraserState.lastY = y;
+
+    // Инициализировать editCanvas перед первым штрихом
+    if (!initEditCanvas()) return;
 
     // Сохранить состояние в историю
     saveEraserHistory();
@@ -111,21 +144,26 @@ function continueErasing(e) {
     if (!eraserState.active) return;
 
     var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) / canvasZoom;
-    var y = (e.clientY - rect.top) / canvasZoom;
+    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    // Отобразить курсор-кисть
-    drawBrushCursor(x, y);
-
-    if (!eraserState.isErasing) return;
+    if (!eraserState.isErasing) {
+        // Только показываем курсор, не стираем
+        drawBrushCursor(x, y);
+        return;
+    }
 
     e.preventDefault();
+    e.stopPropagation();
 
-    // Интерполяция — рисовать линию между lastX/lastY и x/y
+    // Сначала применяем стирание, затем отображаем результат с курсором
     interpolateErase(eraserState.lastX, eraserState.lastY, x, y);
 
     eraserState.lastX = x;
     eraserState.lastY = y;
+
+    // Показать обновлённое состояние и курсор кисти
+    drawBrushCursor(x, y);
 }
 
 /**
@@ -155,23 +193,20 @@ function interpolateErase(x1, y1, x2, y2) {
 
 /**
  * Применить стирание/восстановление в точке (x, y)
+ * Работает напрямую с eraserState.editCanvas (синхронно, без race condition)
  */
 function applyErase(x, y) {
     var layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) return;
+    if (!layer || !eraserState.editCanvas || eraserState.editLayerIndex !== activeLayerIndex) return;
 
     // Получить координаты в системе слоя
     var layerX = Math.round((x - layer.x) / layer.scale);
     var layerY = Math.round((y - layer.y) / layer.scale);
 
-    // Создать временный canvas для редактирования
-    var tempCanvas = document.createElement('canvas');
-    var tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
-    tempCtx.drawImage(layer.image, 0, 0);
+    var ec = eraserState.editCanvas;
+    var ectx = eraserState.editCtx;
 
-    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    var imageData = ectx.getImageData(0, 0, ec.width, ec.height);
     var data = imageData.data;
 
     var brushRadius = eraserState.brushSize / 2;
@@ -184,7 +219,7 @@ function applyErase(x, y) {
             var px = layerX + dxInt;
             var py = layerY + dyInt;
 
-            if (px < 0 || px >= tempCanvas.width || py < 0 || py >= tempCanvas.height) continue;
+            if (px < 0 || px >= ec.width || py < 0 || py >= ec.height) continue;
 
             var distance = Math.sqrt(dxInt * dxInt + dyInt * dyInt);
             if (distance > brushRadius) continue;
@@ -200,7 +235,7 @@ function applyErase(x, y) {
             }
             strength *= opacity;
 
-            var idx = (py * tempCanvas.width + px) * 4;
+            var idx = (py * ec.width + px) * 4;
 
             if (eraserState.mode === 'restore') {
                 // Восстановить из оригинала
@@ -218,99 +253,90 @@ function applyErase(x, y) {
         }
     }
 
-    tempCtx.putImageData(imageData, 0, 0);
-
-    // Обновить изображение слоя через onload для корректного рендера
-    var newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
+    ectx.putImageData(imageData, 0, 0);
 }
 
 /**
  * Умное стирание (удаление похожих цветов)
+ * Работает с editCanvas синхронно.
  */
 function applySmartErase(x, y) {
     var layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) return;
+    if (!layer || !eraserState.editCanvas || eraserState.editLayerIndex !== activeLayerIndex) return;
 
     var layerX = Math.round((x - layer.x) / layer.scale);
     var layerY = Math.round((y - layer.y) / layer.scale);
 
-    var tempCanvas = document.createElement('canvas');
-    var tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
-    tempCtx.drawImage(layer.image, 0, 0);
+    var ec = eraserState.editCanvas;
+    var ectx = eraserState.editCtx;
 
-    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    var imageData = ectx.getImageData(0, 0, ec.width, ec.height);
     var data = imageData.data;
 
     // Получить цвет в точке клика
-    var idx = (layerY * tempCanvas.width + layerX) * 4;
-    var targetR = data[idx];
-    var targetG = data[idx + 1];
-    var targetB = data[idx + 2];
+    var startIdx = (Math.min(Math.max(layerY, 0), ec.height - 1) * ec.width +
+                    Math.min(Math.max(layerX, 0), ec.width - 1)) * 4;
+    var targetR = data[startIdx];
+    var targetG = data[startIdx + 1];
+    var targetB = data[startIdx + 2];
 
     // Толерантность из UI
     var tolerance = parseInt(document.getElementById('smartEraseTolerance').value);
 
     // Удалить похожие цвета в радиусе кисти
     var brushRadius = eraserState.brushSize / 2;
-    for (var dy = -brushRadius; dy <= brushRadius; dy++) {
-        for (var dx = -brushRadius; dx <= brushRadius; dx++) {
+    var brushRadiusCeil = Math.ceil(brushRadius);
+    for (var dy = -brushRadiusCeil; dy <= brushRadiusCeil; dy++) {
+        for (var dx = -brushRadiusCeil; dx <= brushRadiusCeil; dx++) {
             var px = layerX + dx;
             var py = layerY + dy;
 
-            if (px < 0 || px >= tempCanvas.width || py < 0 || py >= tempCanvas.height) continue;
+            if (px < 0 || px >= ec.width || py < 0 || py >= ec.height) continue;
 
             var dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > brushRadius) continue;
 
-            var i = (py * tempCanvas.width + px) * 4;
+            var i = (py * ec.width + px) * 4;
             var colorDist = Math.sqrt(
                 Math.pow(data[i] - targetR, 2) +
                 Math.pow(data[i + 1] - targetG, 2) +
                 Math.pow(data[i + 2] - targetB, 2)
             );
 
-            if (colorDist < tolerance) {
+            if (colorDist <= tolerance) {
                 data[i + 3] = 0; // Прозрачный
             }
         }
     }
 
-    tempCtx.putImageData(imageData, 0, 0);
-
-    var newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-    };
-    newImg.src = tempCanvas.toDataURL('image/png');
+    ectx.putImageData(imageData, 0, 0);
 }
 
 /**
  * Сохранить текущее состояние в историю
+ * Использует editCanvas (если доступен) или layer.image.
  */
 function saveEraserHistory() {
     var layer = layers[activeLayerIndex];
     if (!layer || !layer.image) return;
 
-    var tempCanvas = document.createElement('canvas');
-    var tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = layer.image.width;
-    tempCanvas.height = layer.image.height;
-    tempCtx.drawImage(layer.image, 0, 0);
-    var snapshot = tempCanvas.toDataURL('image/png');
+    var src;
+    if (eraserState.editCanvas && eraserState.editLayerIndex === activeLayerIndex) {
+        src = eraserState.editCanvas.toDataURL('image/png');
+    } else {
+        var tempCanvas = document.createElement('canvas');
+        var tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = layer.image.naturalWidth || layer.image.width;
+        tempCanvas.height = layer.image.naturalHeight || layer.image.height;
+        tempCtx.drawImage(layer.image, 0, 0);
+        src = tempCanvas.toDataURL('image/png');
+    }
 
     // Удалить все состояния после текущего индекса
     eraserState.history = eraserState.history.slice(0, eraserState.historyIndex + 1);
 
     // Добавить новое состояние
-    eraserState.history.push(snapshot);
+    eraserState.history.push(src);
 
     // Ограничить размер истории
     if (eraserState.history.length > eraserState.maxHistory) {
@@ -326,6 +352,10 @@ function saveEraserHistory() {
 function undoEraser() {
     if (eraserState.historyIndex > 0) {
         eraserState.historyIndex--;
+        // Сбросить editCanvas — он будет пересоздан из восстановленного layer.image
+        eraserState.editCanvas = null;
+        eraserState.editCtx = null;
+        eraserState.editLayerIndex = -1;
         restoreFromHistory();
         showHint('Отменено');
     }
@@ -337,6 +367,10 @@ function undoEraser() {
 function redoEraser() {
     if (eraserState.historyIndex < eraserState.history.length - 1) {
         eraserState.historyIndex++;
+        // Сбросить editCanvas — он будет пересоздан из восстановленного layer.image
+        eraserState.editCanvas = null;
+        eraserState.editCtx = null;
+        eraserState.editLayerIndex = -1;
         restoreFromHistory();
         showHint('Повторено');
     }
@@ -361,20 +395,50 @@ function restoreFromHistory() {
 }
 
 /**
- * Применить изменения к слою (сохранить финальное состояние)
+ * Применить изменения к слою (сохранить финальное состояние из editCanvas)
  */
 function commitEraseToLayer() {
-    render();
+    var layer = layers[activeLayerIndex];
+    if (!layer || !eraserState.editCanvas || eraserState.editLayerIndex !== activeLayerIndex) {
+        render();
+        return;
+    }
+
+    var dataURL = eraserState.editCanvas.toDataURL('image/png');
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        // Сбросить editCanvas — следующий штрих создаст его заново из обновлённого layer.image
+        eraserState.editCanvas = null;
+        eraserState.editCtx = null;
+        eraserState.editLayerIndex = -1;
+        render();
+    };
+    newImg.src = dataURL;
 }
 
 /**
- * Отобразить курсор-кисть поверх холста
+ * Отобразить курсор-кисть поверх холста.
+ * Во время активного стирания рендерит слой из editCanvas для быстрого превью.
  */
 function drawBrushCursor(x, y) {
     if (!eraserState.active) return;
 
-    // Перерисовать сцену
-    render();
+    // Если идёт стирание, рендерим с editCanvas как источником слоя
+    if (eraserState.isErasing && eraserState.editCanvas &&
+            eraserState.editLayerIndex === activeLayerIndex) {
+        var layer = layers[activeLayerIndex];
+        var savedImage = layer ? layer.image : null;
+        if (layer && savedImage) {
+            layer.image = eraserState.editCanvas;
+            render();
+            layer.image = savedImage;
+        } else {
+            render();
+        }
+    } else {
+        render();
+    }
 
     var ctx2d = canvas.getContext('2d');
     ctx2d.save();
