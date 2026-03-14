@@ -251,11 +251,35 @@ body {
     margin-bottom: 12px;
     margin-top: 12px;
     padding-top: 12px;
+    padding-bottom: 4px;
     border-top: 1px solid #3a3a3a;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+}
+
+.layer-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+
+.layer-tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.layer-tabs::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+.layer-tabs::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 .tab-btn {
-    flex: 1;
+    flex: 0 0 auto;
+    min-width: 60px;
     background: #2d2d2d;
     border: 1px solid #444;
     color: #ccc;
@@ -266,6 +290,7 @@ body {
     transition: all 0.2s;
     font-weight: 600;
     text-align: center;
+    white-space: nowrap;
 }
 
 .tab-btn:active {
