@@ -448,6 +448,9 @@ function initUIControls() {
 
     // Инициализация вкладки искажений и пикселизации
     initDistortionTab();
+
+    // Инициализация вкладки ластика
+    initEraserTab();
 }
 
 // Инициализация слайдеров Channel Mixer
@@ -943,4 +946,81 @@ function resetDistortionEffects() {
     layer.image = layer.originalImage;
     render();
     showHint('Эффекты сброшены');
+}
+
+// ==================== ЛАСТИК ====================
+
+// Переключить активацию ластика
+function toggleEraser() {
+    if (eraserState.active) {
+        deactivateEraser();
+        document.getElementById('toggleEraser').textContent = '✓ Активировать ластик';
+        document.getElementById('toggleEraser').classList.remove('danger');
+        document.getElementById('toggleEraser').classList.add('primary');
+    } else {
+        activateEraser();
+        document.getElementById('toggleEraser').textContent = '✖ Деактивировать ластик';
+        document.getElementById('toggleEraser').classList.remove('primary');
+        document.getElementById('toggleEraser').classList.add('danger');
+    }
+}
+
+// Сбросить все изменения ластика
+function resetEraser() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !eraserState.originalImageData) {
+        showHint('Нет исходного изображения');
+        return;
+    }
+
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = eraserState.originalImageData.width;
+    tempCanvas.height = eraserState.originalImageData.height;
+    tempCtx.putImageData(eraserState.originalImageData, 0, 0);
+
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+
+    // Очистить историю
+    eraserState.history = [];
+    eraserState.historyIndex = -1;
+
+    showHint('Изменения сброшены');
+}
+
+// Инициализация вкладки ластика
+function initEraserTab() {
+    // Инициализировать обработчики canvas для ластика
+    initEraserTool();
+
+    // Показать/скрыть группу параметров умного ластика
+    document.getElementById('eraserMode').addEventListener('change', function(e) {
+        var smartGroup = document.getElementById('smartEraseGroup');
+        smartGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+    });
+
+    // Инициализация слайдеров ластика
+    initSlider('eraserSize', function(e) {
+        eraserState.brushSize = parseInt(e.target.value);
+        document.getElementById('eraserSizeVal').textContent = e.target.value + 'px';
+    });
+
+    initSlider('eraserHardness', function(e) {
+        eraserState.brushHardness = parseInt(e.target.value);
+        document.getElementById('eraserHardnessVal').textContent = e.target.value + '%';
+    });
+
+    initSlider('eraserOpacity', function(e) {
+        eraserState.brushOpacity = parseInt(e.target.value);
+        document.getElementById('eraserOpacityVal').textContent = e.target.value + '%';
+    });
+
+    initSlider('smartEraseTolerance', function(e) {
+        document.getElementById('smartEraseToleranceVal').textContent = e.target.value;
+    });
 }
