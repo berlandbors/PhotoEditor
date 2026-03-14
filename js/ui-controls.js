@@ -445,6 +445,9 @@ function initUIControls() {
 
     // Инициализация вкладки удаления фона
     initBackgroundTab();
+
+    // Инициализация вкладки искажений и пикселизации
+    initDistortionTab();
 }
 
 // Инициализация слайдеров Channel Mixer
@@ -781,4 +784,163 @@ function initBackgroundTab() {
         document.getElementById('luminanceThresholdVal').textContent =
             document.getElementById('luminanceThreshold').value;
     });
+}
+
+// Инициализация вкладки искажений и пикселизации
+function initDistortionTab() {
+    // Показать/скрыть группы параметров при смене режима пикселизации
+    document.getElementById('pixelMode').addEventListener('change', function(e) {
+        var colorGroup = document.getElementById('colorCountGroup');
+        var paletteGroup = document.getElementById('retroPaletteGroup');
+
+        if (e.target.value === 'pixelart') {
+            colorGroup.style.display = 'block';
+            paletteGroup.style.display = 'none';
+        } else if (e.target.value === 'retro') {
+            colorGroup.style.display = 'none';
+            paletteGroup.style.display = 'block';
+        } else {
+            colorGroup.style.display = 'none';
+            paletteGroup.style.display = 'none';
+        }
+    });
+
+    // Ползунки искажений
+    initSlider('distortIntensity', function() {
+        document.getElementById('distortIntensityVal').textContent =
+            document.getElementById('distortIntensity').value;
+    });
+
+    initSlider('distortRadius', function() {
+        document.getElementById('distortRadiusVal').textContent =
+            document.getElementById('distortRadius').value + '%';
+    });
+
+    initSlider('pixelSize', function() {
+        document.getElementById('pixelSizeVal').textContent =
+            document.getElementById('pixelSize').value + 'px';
+    });
+
+    initSlider('colorCount', function() {
+        document.getElementById('colorCountVal').textContent =
+            document.getElementById('colorCount').value;
+    });
+}
+
+// Применить искажение к активному слою
+function applyDistortionEffect() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('Нет активного слоя');
+        return;
+    }
+
+    var type = document.getElementById('distortionType').value;
+    if (!type) {
+        showHint('Выберите тип искажения');
+        return;
+    }
+
+    var intensity = parseInt(document.getElementById('distortIntensity').value);
+    var radius = parseInt(document.getElementById('distortRadius').value) / 100;
+
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    switch (type) {
+        case 'twist':
+            imageData = applyTwist(imageData, intensity, radius);
+            break;
+        case 'bulge':
+            imageData = applyBulge(imageData, intensity, radius);
+            break;
+        case 'pinch':
+            imageData = applyBulge(imageData, -intensity, radius);
+            break;
+        case 'wave-h':
+            imageData = applyWave(imageData, intensity * 0.5, 30, 'horizontal');
+            break;
+        case 'wave-v':
+            imageData = applyWave(imageData, intensity * 0.5, 30, 'vertical');
+            break;
+        case 'funhouse':
+            imageData = applyFunhouse(imageData, intensity);
+            break;
+        case 'swirl':
+            imageData = applySwirl(imageData, intensity, radius);
+            break;
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint('Искажение применено');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Применить пикселизацию к активному слою
+function applyPixelationEffect() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('Нет активного слоя');
+        return;
+    }
+
+    var mode = document.getElementById('pixelMode').value;
+    var blockSize = parseInt(document.getElementById('pixelSize').value);
+    var colorCount = parseInt(document.getElementById('colorCount').value);
+    var palette = document.getElementById('retroPalette').value;
+
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.width;
+    tempCanvas.height = layer.image.height;
+
+    tempCtx.drawImage(layer.image, 0, 0);
+    var imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    switch (mode) {
+        case 'mosaic':
+            imageData = applyPixelation(imageData, blockSize);
+            break;
+        case 'pixelart':
+            imageData = applyPixelArt(imageData, blockSize, colorCount);
+            break;
+        case 'retro':
+            imageData = applyPixelation(imageData, blockSize);
+            imageData = applyRetroPalette(imageData, palette);
+            break;
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    var newImg = new Image();
+    newImg.onload = function() {
+        layer.image = newImg;
+        render();
+        showHint('Пикселизация применена');
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+}
+
+// Сбросить эффекты искажения (восстановить оригинальное изображение)
+function resetDistortionEffects() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.originalImage) {
+        showHint('Нет исходного изображения');
+        return;
+    }
+
+    layer.image = layer.originalImage;
+    render();
+    showHint('Эффекты сброшены');
 }
