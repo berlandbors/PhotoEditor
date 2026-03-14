@@ -187,22 +187,94 @@ function applyFiltersToImage(layer, imageOverride) {
             data[i + 2] += noise;
         }
     }
+
+    // Применить резкость ПОСЛЕ всех фильтров
+    if (layer.sharpness > 0) {
+        imageData = applySharpen(imageData, layer.sharpness);
+        data = imageData.data;
+    }
     
     tempCtx.putImageData(imageData, 0, 0);
     
-    // Применяем эффекты через CSS фильтры
-    let filterString = '';
-    
-    if (layer.blur > 0) {
-        filterString += `blur(${layer.blur}px) `;
-    }
-    
-    if (layer.sharpness > 0) {
-        const sharpAmount = 1 + (layer.sharpness / 50);
-        filterString += `contrast(${sharpAmount}) `;
-    }
-    
     return tempCanvas;
+}
+
+/**
+ * Применить эффект резкости (Unsharp Mask)
+ * @param {ImageData} imageData
+ * @param {number} amount - сила резкости (0-100)
+ * @returns {ImageData}
+ */
+function applySharpen(imageData, amount) {
+    if (amount <= 0) return imageData;
+
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    const output = new Uint8ClampedArray(data.length);
+
+    // Копировать альфа-канал без изменений
+    for (let i = 0; i < data.length; i += 4) {
+        output[i + 3] = data[i + 3];
+    }
+
+    // Unsharp Mask: изображение + (изображение - размытие) * amount
+    const weight = amount / 100; // 0-1
+    const kernel = [-weight, -weight, -weight, -weight, 1 + 8 * weight, -weight, -weight, -weight, -weight];
+
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            let r = 0, g = 0, b = 0;
+            let kernelIndex = 0;
+
+            for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                    const idx = ((y + ky) * width + (x + kx)) * 4;
+                    const k = kernel[kernelIndex++];
+                    r += data[idx] * k;
+                    g += data[idx + 1] * k;
+                    b += data[idx + 2] * k;
+                }
+            }
+
+            const outIdx = (y * width + x) * 4;
+            output[outIdx] = Math.max(0, Math.min(255, r));
+            output[outIdx + 1] = Math.max(0, Math.min(255, g));
+            output[outIdx + 2] = Math.max(0, Math.min(255, b));
+        }
+    }
+
+    // Скопировать края без изменений
+    for (let x = 0; x < width; x++) {
+        // Верхний край
+        let idx = x * 4;
+        output[idx] = data[idx];
+        output[idx + 1] = data[idx + 1];
+        output[idx + 2] = data[idx + 2];
+
+        // Нижний край
+        idx = ((height - 1) * width + x) * 4;
+        output[idx] = data[idx];
+        output[idx + 1] = data[idx + 1];
+        output[idx + 2] = data[idx + 2];
+    }
+
+    for (let y = 0; y < height; y++) {
+        // Левый край
+        let idx = (y * width) * 4;
+        output[idx] = data[idx];
+        output[idx + 1] = data[idx + 1];
+        output[idx + 2] = data[idx + 2];
+
+        // Правый край
+        idx = (y * width + width - 1) * 4;
+        output[idx] = data[idx];
+        output[idx + 1] = data[idx + 1];
+        output[idx + 2] = data[idx + 2];
+    }
+
+    imageData.data.set(output);
+    return imageData;
 }
 
 // Вспомогательные функции для конвертации цветов
@@ -433,12 +505,12 @@ function drawLayer(layer) {
     if (layer.vignette > 0) {
         const centerX = layer.x + width / 2;
         const centerY = layer.y + height / 2;
-        const radius = Math.max(width, height);
+        const radius = Math.sqrt(width * width + height * height) / 2;
         const vignetteStrength = layer.vignette / 100;
         
         const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
         gradient.addColorStop(0, 'rgba(0,0,0,0)');
-        gradient.addColorStop(0.7, 'rgba(0,0,0,0)');
+        gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
         gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
         
         ctx.fillStyle = gradient;
