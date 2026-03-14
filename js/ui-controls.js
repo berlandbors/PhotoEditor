@@ -98,16 +98,8 @@ function initSlider(sliderId, callback) {
     const slider = document.getElementById(sliderId);
     let isDraggingSlider = false;
 
-    slider.addEventListener('mousedown', (e) => {
-        const rect = slider.getBoundingClientRect();
-        const clickPos = (e.clientX - rect.left) / rect.width;
-        const sliderValue = (slider.value - slider.min) / (slider.max - slider.min);
-        
-        if (Math.abs(clickPos - sliderValue) < 0.05) {
-            isDraggingSlider = true;
-        } else {
-            e.preventDefault();
-        }
+    slider.addEventListener('mousedown', () => {
+        isDraggingSlider = true;
     });
 
     slider.addEventListener('touchstart', () => {

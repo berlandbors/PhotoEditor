@@ -153,7 +153,10 @@ function startErasing(e) {
     eraserState.lastY = y;
 
     // Инициализировать editCanvas перед первым штрихом
-    if (!initEditCanvas()) return;
+    if (!initEditCanvas()) {
+        eraserState.isErasing = false;
+        return;
+    }
 
     // Сохранить состояние в историю
     saveEraserHistory();
@@ -254,11 +257,12 @@ function applyErase(x, y) {
             if (distance > brushRadius) continue;
 
             // Вычислить силу стирания (с учётом мягкости)
+            // hardness=0 → мягкая кисть (растушёвка от центра), hardness=1 → жёсткая
             var strength = 1;
             if (hardness < 1) {
-                // Мягкая кисть — градиент от центра к краю
-                var softRadius = brushRadius * (1 - hardness);
-                if (distance > softRadius && brushRadius > softRadius) {
+                // Мягкая кисть — зона жёсткости от 0 до softRadius, растушёвка до brushRadius
+                var softRadius = brushRadius * hardness;
+                if (distance > softRadius) {
                     strength = 1 - (distance - softRadius) / (brushRadius - softRadius);
                 }
             }
@@ -314,6 +318,8 @@ function applySmartErase(x, y) {
 
     // Удалить похожие цвета в радиусе кисти
     var brushRadius = eraserState.brushSize / 2;
+    var hardness = eraserState.brushHardness / 100;
+    var opacity = eraserState.brushOpacity / 100;
     var brushRadiusCeil = Math.ceil(brushRadius);
     for (var dy = -brushRadiusCeil; dy <= brushRadiusCeil; dy++) {
         for (var dx = -brushRadiusCeil; dx <= brushRadiusCeil; dx++) {
@@ -333,7 +339,19 @@ function applySmartErase(x, y) {
             );
 
             if (colorDist <= tolerance) {
-                data[i + 3] = 0; // Прозрачный
+                // Растушёвка по краям кисти (hardness=0 → мягкая, hardness=1 → жёсткая)
+                var strength = 1;
+                if (hardness < 1) {
+                    var softRadius = brushRadius * hardness;
+                    if (dist > softRadius) {
+                        strength = 1 - (dist - softRadius) / (brushRadius - softRadius);
+                    }
+                }
+                strength *= opacity;
+                // Дополнительное сглаживание по похожести цвета
+                strength *= (1 - colorDist / tolerance);
+
+                data[i + 3] = Math.max(0, data[i + 3] - data[i + 3] * strength);
             }
         }
     }
@@ -476,16 +494,27 @@ function drawBrushCursor(x, y) {
 
     var ctx2d = canvas.getContext('2d');
     ctx2d.save();
-    // Внешняя окружность
-    ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
+    var cursorColor = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
+    // Внешняя окружность (полный размер кисти)
+    ctx2d.strokeStyle = cursorColor;
     ctx2d.lineWidth = 1.5;
     ctx2d.setLineDash([4, 4]);
     ctx2d.beginPath();
     ctx2d.arc(x, y, cursorRadius, 0, Math.PI * 2);
     ctx2d.stroke();
+    // Внутренняя окружность (зона жёсткости, только при промежуточной жёсткости)
+    var hardness = eraserState.brushHardness / 100;
+    if (hardness > 0 && hardness < 1) {
+        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.4)' : 'rgba(255,255,255,0.4)';
+        ctx2d.lineWidth = 1;
+        ctx2d.setLineDash([2, 2]);
+        ctx2d.beginPath();
+        ctx2d.arc(x, y, Math.max(1, cursorRadius * hardness), 0, Math.PI * 2);
+        ctx2d.stroke();
+    }
     // Точка в центре
     ctx2d.setLineDash([]);
-    ctx2d.fillStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
+    ctx2d.fillStyle = cursorColor;
     ctx2d.beginPath();
     ctx2d.arc(x, y, 1.5, 0, Math.PI * 2);
     ctx2d.fill();
@@ -497,8 +526,9 @@ function drawBrushCursor(x, y) {
  */
 function getEraserCoords(e) {
     var rect = canvas.getBoundingClientRect();
-    var clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-    var clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    var touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    var clientX = e.clientX !== undefined ? e.clientX : (touch ? touch.clientX : 0);
+    var clientY = e.clientY !== undefined ? e.clientY : (touch ? touch.clientY : 0);
     return {
         x: (clientX - rect.left) * (canvas.width / rect.width),
         y: (clientY - rect.top) * (canvas.height / rect.height)
