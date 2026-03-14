@@ -44,7 +44,7 @@ function removeBackgroundByColor(imageData, options) {
     const data = imageData.data;
     const targetColor = options.targetColor || { r: 0, g: 255, b: 0 };
     const tolerance = options.tolerance || 30;
-    const feather = options.feather || 5;
+    const feather = options.feather || 0;
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
@@ -69,6 +69,72 @@ function removeBackgroundByColor(imageData, options) {
             } else {
                 data[i + 3] = 0; // Полностью прозрачный
             }
+        }
+    }
+
+    // Гауссово размытие альфа-канала для дополнительного смягчения краёв
+    if (feather > 2) {
+        const blurRadius = Math.max(1, Math.round(feather / 8));
+        applyGaussianBlurToAlpha(imageData, blurRadius);
+    }
+
+    return imageData;
+}
+
+/**
+ * Применить гауссово размытие к альфа-каналу (для мягких краёв)
+ * @param {ImageData} imageData
+ * @param {number} radius - радиус размытия (1-10)
+ * @returns {ImageData}
+ */
+function applyGaussianBlurToAlpha(imageData, radius) {
+    radius = Math.max(1, Math.round(radius));
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+
+    // Построить ядро Гаусса
+    const kernelSize = radius * 2 + 1;
+    const sigma = radius / 2;
+    const kernel = new Float32Array(kernelSize);
+    let kernelSum = 0;
+    for (let i = 0; i < kernelSize; i++) {
+        const x = i - radius;
+        kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+        kernelSum += kernel[i];
+    }
+    for (let i = 0; i < kernelSize; i++) kernel[i] /= kernelSum;
+
+    // Временный буфер для альфа-канала
+    const alphaIn = new Float32Array(width * height);
+    const alphaH = new Float32Array(width * height); // после горизонтального прохода
+
+    // Извлечь альфа в буфер
+    for (let i = 0; i < width * height; i++) {
+        alphaIn[i] = data[i * 4 + 3];
+    }
+
+    // Горизонтальный проход
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            let val = 0;
+            for (let k = 0; k < kernelSize; k++) {
+                const sx = Math.min(Math.max(x + k - radius, 0), width - 1);
+                val += alphaIn[y * width + sx] * kernel[k];
+            }
+            alphaH[y * width + x] = val;
+        }
+    }
+
+    // Вертикальный проход и запись в imageData
+    for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+            let val = 0;
+            for (let k = 0; k < kernelSize; k++) {
+                const sy = Math.min(Math.max(y + k - radius, 0), height - 1);
+                val += alphaH[sy * width + x] * kernel[k];
+            }
+            data[(y * width + x) * 4 + 3] = Math.round(val);
         }
     }
 
@@ -154,9 +220,11 @@ function removeColorChannel(imageData, channel, mode, options) {
  * @param {ImageData} imageData
  * @param {string} type - 'shadows' | 'highlights'
  * @param {number} threshold - порог яркости (0-255)
+ * @param {number} feather - размытие краёв (0-100)
  */
-function removeLuminanceRange(imageData, type, threshold) {
+function removeLuminanceRange(imageData, type, threshold, feather) {
     threshold = threshold || 50;
+    feather = feather || 0;
     const data = imageData.data;
 
     for (let i = 0; i < data.length; i += 4) {
@@ -166,11 +234,34 @@ function removeLuminanceRange(imageData, type, threshold) {
 
         const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
 
-        if (type === 'shadows' && luminance < threshold) {
-            data[i + 3] = 0;
-        } else if (type === 'highlights' && luminance > 255 - threshold) {
-            data[i + 3] = 0;
+        if (type === 'shadows') {
+            if (luminance < threshold) {
+                if (feather > 0 && luminance > threshold - feather) {
+                    const t = (luminance - (threshold - feather)) / feather;
+                    const smoothT = t * t * (3 - 2 * t);
+                    data[i + 3] = Math.round(data[i + 3] * smoothT);
+                } else {
+                    data[i + 3] = 0;
+                }
+            }
+        } else if (type === 'highlights') {
+            const invThreshold = 255 - threshold;
+            if (luminance > invThreshold) {
+                if (feather > 0 && luminance < invThreshold + feather) {
+                    const t = (luminance - invThreshold) / feather;
+                    const smoothT = t * t * (3 - 2 * t);
+                    data[i + 3] = Math.round(data[i + 3] * (1 - smoothT));
+                } else {
+                    data[i + 3] = 0;
+                }
+            }
         }
+    }
+
+    // Гауссово размытие альфа-канала для смягчения краёв
+    if (feather > 2) {
+        const blurRadius = Math.max(1, Math.round(feather / 8));
+        applyGaussianBlurToAlpha(imageData, blurRadius);
     }
 
     return imageData;

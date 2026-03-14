@@ -212,6 +212,64 @@ function applyFunhouse(imageData, intensity) {
 }
 
 /**
+ * Radial Ripple (Радиальная рябь от центра)
+ * Концентрические круги как от капли воды
+ * @param {ImageData} imageData
+ * @param {number} intensity - сила эффекта (0-100)
+ * @param {number} frequency - частота волн (количество)
+ * @param {Object} center - {x: 0-1, y: 0-1}
+ * @returns {ImageData}
+ */
+function applyRadialRipple(imageData, intensity, frequency, center) {
+    center = center || { x: 0.5, y: 0.5 };
+    frequency = frequency || 5;
+
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const output = new Uint8ClampedArray(data.length);
+
+    const cx = center.x * width;
+    const cy = center.y * height;
+    const maxRadius = Math.sqrt(width * width + height * height) / 2;
+    const amplitude = intensity * 0.5;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const dx = x - cx;
+            const dy = y - cy;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Радиальная волна (синус от расстояния)
+            const wave = Math.sin((distance / maxRadius) * Math.PI * 2 * frequency);
+            const offset = wave * amplitude;
+
+            // Вычислить направление от центра
+            const angle = Math.atan2(dy, dx);
+            const offsetX = Math.cos(angle) * offset;
+            const offsetY = Math.sin(angle) * offset;
+
+            const srcX = Math.round(x + offsetX);
+            const srcY = Math.round(y + offsetY);
+            const destIdx = (y * width + x) * 4;
+
+            if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height) {
+                const srcIdx = (srcY * width + srcX) * 4;
+                output[destIdx]     = data[srcIdx];
+                output[destIdx + 1] = data[srcIdx + 1];
+                output[destIdx + 2] = data[srcIdx + 2];
+                output[destIdx + 3] = data[srcIdx + 3];
+            } else {
+                output[destIdx + 3] = 0;
+            }
+        }
+    }
+
+    imageData.data.set(output);
+    return imageData;
+}
+
+/**
  * Swirl (Водоворот / Радиальное закручивание)
  * @param {ImageData} imageData
  * @param {number} intensity - сила эффекта (0-100)

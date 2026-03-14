@@ -31,14 +31,19 @@ function initEditCanvas() {
 
     // Пересоздаём canvas если слой сменился или ещё не создан
     if (eraserState.editLayerIndex !== activeLayerIndex || !eraserState.editCanvas) {
+        var imgW = layer.image.naturalWidth || layer.image.width;
+        var imgH = layer.image.naturalHeight || layer.image.height;
+        if (!imgW || !imgH) return false;
+
         var ec = document.createElement('canvas');
         var ectx = ec.getContext('2d');
-        ec.width = layer.image.naturalWidth || layer.image.width;
-        ec.height = layer.image.naturalHeight || layer.image.height;
+        ec.width = imgW;
+        ec.height = imgH;
         ectx.drawImage(layer.image, 0, 0);
         eraserState.editCanvas = ec;
         eraserState.editCtx = ectx;
         eraserState.editLayerIndex = activeLayerIndex;
+        console.log('[Eraser] initEditCanvas created:', imgW, 'x', imgH, 'for layer', activeLayerIndex);
     }
     return true;
 }
@@ -47,26 +52,32 @@ function initEditCanvas() {
  * Активировать инструмент ластика
  */
 function activateEraser() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('Выберите слой с изображением для использования ластика');
+        return;
+    }
+
+    console.log('[Eraser] Activating eraser for layer', activeLayerIndex);
     eraserState.active = true;
 
     // Сохранить оригинал активного слоя
-    var layer = layers[activeLayerIndex];
-    if (layer && layer.image) {
-        var tempCanvas = document.createElement('canvas');
-        var tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = layer.image.naturalWidth || layer.image.width;
-        tempCanvas.height = layer.image.naturalHeight || layer.image.height;
-        tempCtx.drawImage(layer.image, 0, 0);
-        eraserState.originalImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    }
+    var tempCanvas = document.createElement('canvas');
+    var tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = layer.image.naturalWidth || layer.image.width;
+    tempCanvas.height = layer.image.naturalHeight || layer.image.height;
+    tempCtx.drawImage(layer.image, 0, 0);
+    eraserState.originalImageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
 
     // Сбросить editCanvas — он будет инициализирован при первом штрихе
     eraserState.editCanvas = null;
     eraserState.editCtx = null;
     eraserState.editLayerIndex = -1;
+    eraserState.history = [];
+    eraserState.historyIndex = -1;
 
     // Изменить курсор
-    canvas.style.cursor = 'crosshair';
+    canvas.style.cursor = 'none';
     canvas.classList.add('eraser-active');
 
     // Подписаться на события
@@ -75,6 +86,7 @@ function activateEraser() {
     canvas.addEventListener('mouseup', stopErasing);
     canvas.addEventListener('mouseleave', stopErasing);
 
+    console.log('[Eraser] Eraser activated, originalImageData saved:', tempCanvas.width, 'x', tempCanvas.height);
     showHint('Ластик активирован. ЛКМ — стереть, ПКМ — восстановить');
 }
 
@@ -96,6 +108,7 @@ function deactivateEraser() {
     // Перерисовать без курсора кисти
     render();
 
+    console.log('[Eraser] Eraser deactivated');
     showHint('Ластик выключен');
 }
 
@@ -440,14 +453,26 @@ function drawBrushCursor(x, y) {
         render();
     }
 
+    // Вычислить радиус курсора с учётом масштаба слоя
+    var layer = layers[activeLayerIndex];
+    var scale = (layer && layer.scale) ? layer.scale : 1;
+    var cursorRadius = Math.max(1, (eraserState.brushSize / 2) * scale);
+
     var ctx2d = canvas.getContext('2d');
     ctx2d.save();
-    ctx2d.strokeStyle = eraserState.mode === 'restore' ? '#00ff00' : '#ff0000';
+    // Внешняя окружность
+    ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
     ctx2d.lineWidth = 1.5;
     ctx2d.setLineDash([4, 4]);
     ctx2d.beginPath();
-    ctx2d.arc(x, y, eraserState.brushSize / 2, 0, Math.PI * 2);
+    ctx2d.arc(x, y, cursorRadius, 0, Math.PI * 2);
     ctx2d.stroke();
+    // Точка в центре
+    ctx2d.setLineDash([]);
+    ctx2d.fillStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
+    ctx2d.beginPath();
+    ctx2d.arc(x, y, 1.5, 0, Math.PI * 2);
+    ctx2d.fill();
     ctx2d.restore();
 }
 
