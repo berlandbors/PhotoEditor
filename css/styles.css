@@ -258,6 +258,8 @@ body {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap;
+    scrollbar-width: thin;
+    touch-action: pan-x;
 }
 
 .layer-tabs::-webkit-scrollbar {
