@@ -238,13 +238,26 @@ function applyErase(x, y) {
     var ec = eraserState.editCanvas;
     var ectx = eraserState.editCtx;
 
-    var imageData = ectx.getImageData(0, 0, ec.width, ec.height);
-    var data = imageData.data;
-
     var brushRadius = eraserState.brushSize / 2;
     if (brushRadius <= 0) return;
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
+
+    // Читаем только локальную область вокруг кисти
+    var margin = Math.ceil(brushRadius) + 1;
+    var x1 = Math.max(0, layerX - margin);
+    var y1 = Math.max(0, layerY - margin);
+    var x2 = Math.min(ec.width, layerX + margin + 1);
+    var y2 = Math.min(ec.height, layerY + margin + 1);
+    var localW = x2 - x1;
+    var localH = y2 - y1;
+    if (localW <= 0 || localH <= 0) return;
+
+    var imageData = ectx.getImageData(x1, y1, localW, localH);
+    var data = imageData.data;
+
+    var origData = (eraserState.mode === 'restore' && eraserState.originalImageData)
+        ? eraserState.originalImageData.data : null;
 
     var dyInt, dxInt;
     for (dyInt = Math.ceil(-brushRadius); dyInt <= Math.floor(brushRadius); dyInt++) {
@@ -252,7 +265,7 @@ function applyErase(x, y) {
             var px = layerX + dxInt;
             var py = layerY + dyInt;
 
-            if (px < 0 || px >= ec.width || py < 0 || py >= ec.height) continue;
+            if (px < x1 || px >= x2 || py < y1 || py >= y2) continue;
 
             var distance = Math.sqrt(dxInt * dxInt + dyInt * dyInt);
             if (distance > brushRadius) continue;
@@ -279,17 +292,18 @@ function applyErase(x, y) {
 
             strength *= opacity;
 
-            var idx = (py * ec.width + px) * 4;
+            // Индекс в локальной области
+            var localPx = px - x1;
+            var localPy = py - y1;
+            var idx = (localPy * localW + localPx) * 4;
 
-            if (eraserState.mode === 'restore') {
+            if (origData) {
                 // Восстановить из оригинала
-                if (eraserState.originalImageData) {
-                    var origData = eraserState.originalImageData.data;
-                    data[idx]     = eraserLerp(data[idx],     origData[idx],     strength);
-                    data[idx + 1] = eraserLerp(data[idx + 1], origData[idx + 1], strength);
-                    data[idx + 2] = eraserLerp(data[idx + 2], origData[idx + 2], strength);
-                    data[idx + 3] = eraserLerp(data[idx + 3], origData[idx + 3], strength);
-                }
+                var origIdx = (py * ec.width + px) * 4;
+                data[idx]     = eraserLerp(data[idx],     origData[origIdx],     strength);
+                data[idx + 1] = eraserLerp(data[idx + 1], origData[origIdx + 1], strength);
+                data[idx + 2] = eraserLerp(data[idx + 2], origData[origIdx + 2], strength);
+                data[idx + 3] = eraserLerp(data[idx + 3], origData[origIdx + 3], strength);
             } else {
                 // Стирание — плавное затухание альфа-канала
                 data[idx + 3] = Math.round(data[idx + 3] * (1 - strength));
@@ -297,7 +311,7 @@ function applyErase(x, y) {
         }
     }
 
-    ectx.putImageData(imageData, 0, 0);
+    ectx.putImageData(imageData, x1, y1);
 }
 
 /**
@@ -314,16 +328,6 @@ function applySmartErase(x, y) {
     var ec = eraserState.editCanvas;
     var ectx = eraserState.editCtx;
 
-    var imageData = ectx.getImageData(0, 0, ec.width, ec.height);
-    var data = imageData.data;
-
-    // Получить цвет в точке клика
-    var startIdx = (Math.min(Math.max(layerY, 0), ec.height - 1) * ec.width +
-                    Math.min(Math.max(layerX, 0), ec.width - 1)) * 4;
-    var targetR = data[startIdx];
-    var targetG = data[startIdx + 1];
-    var targetB = data[startIdx + 2];
-
     // Толерантность из UI
     var tolerance = parseInt(document.getElementById('smartEraseTolerance').value);
 
@@ -332,18 +336,42 @@ function applySmartErase(x, y) {
     if (brushRadius <= 0) return;
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
+
+    // Читаем только локальную область вокруг кисти
+    var margin = Math.ceil(brushRadius) + 1;
+    var x1 = Math.max(0, layerX - margin);
+    var y1 = Math.max(0, layerY - margin);
+    var x2 = Math.min(ec.width, layerX + margin + 1);
+    var y2 = Math.min(ec.height, layerY + margin + 1);
+    var localW = x2 - x1;
+    var localH = y2 - y1;
+    if (localW <= 0 || localH <= 0) return;
+
+    var imageData = ectx.getImageData(x1, y1, localW, localH);
+    var data = imageData.data;
+
+    // Получить цвет в точке клика из локальной области
+    var clampedX = Math.min(Math.max(layerX, x1), x2 - 1);
+    var clampedY = Math.min(Math.max(layerY, y1), y2 - 1);
+    var startIdx = ((clampedY - y1) * localW + (clampedX - x1)) * 4;
+    var targetR = data[startIdx];
+    var targetG = data[startIdx + 1];
+    var targetB = data[startIdx + 2];
+
     var brushRadiusCeil = Math.ceil(brushRadius);
     for (var dy = -brushRadiusCeil; dy <= brushRadiusCeil; dy++) {
         for (var dx = -brushRadiusCeil; dx <= brushRadiusCeil; dx++) {
             var px = layerX + dx;
             var py = layerY + dy;
 
-            if (px < 0 || px >= ec.width || py < 0 || py >= ec.height) continue;
+            if (px < x1 || px >= x2 || py < y1 || py >= y2) continue;
 
             var dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > brushRadius) continue;
 
-            var i = (py * ec.width + px) * 4;
+            var localPx = px - x1;
+            var localPy = py - y1;
+            var i = (localPy * localW + localPx) * 4;
             var colorDist = Math.sqrt(
                 Math.pow(data[i] - targetR, 2) +
                 Math.pow(data[i + 1] - targetG, 2) +
@@ -373,7 +401,7 @@ function applySmartErase(x, y) {
         }
     }
 
-    ectx.putImageData(imageData, 0, 0);
+    ectx.putImageData(imageData, x1, y1);
 }
 
 /**
