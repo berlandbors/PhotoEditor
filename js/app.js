@@ -57,8 +57,7 @@ function createNewLayer() {
         channelMixer: null,
         levels: null,
         // Эффекты удаления фона (неразрушающие)
-        backgroundRemoval: null,
-        channelRemoval: null,
+        colorRemoval: null,
         luminanceRemoval: null
     };
 }

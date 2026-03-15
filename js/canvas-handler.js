@@ -95,47 +95,50 @@ function applyFiltersToImage(layer, imageOverride) {
         data = imageData.data;
     }
 
-    // Применяем удаление фона (неразрушающее)
-    if (layer.backgroundRemoval) {
-        const bgr = layer.backgroundRemoval;
-        if (bgr.mode === 'auto') {
-            imageData = autoRemoveBackground(imageData, {
-                tolerance: bgr.tolerance,
-                feather: bgr.feather,
-                strength: bgr.strength / 100
-            });
-        } else if (bgr.mode === 'color') {
-            imageData = removeBackgroundByColor(imageData, {
-                targetColor: bgr.targetColor,
-                tolerance: bgr.tolerance,
-                feather: bgr.feather,
-                strength: bgr.strength / 100
-            });
-        }
+    // Применяем удаление по цвету (неразрушающее)
+    if (layer.colorRemoval) {
+        const cr = layer.colorRemoval;
+        imageData = removeBackgroundByColor(imageData, {
+            targetColor: cr.targetColor,
+            tolerance: cr.tolerance,
+            feather: cr.feather,
+            strength: cr.strength / 100
+        });
         data = imageData.data;
-    }
 
-    // Применяем удаление цветового канала (неразрушающее)
-    if (layer.channelRemoval) {
-        const cr = layer.channelRemoval;
-        // Нормализовать старый формат (без поля mode) к новому формату range
-        const effectiveMode = cr.mode || 'range';
-        const effectiveChannelMode = cr.channelMode || cr.mode || 'transparent';
-        if (effectiveMode === 'eyedropper' && cr.targetColor) {
-            imageData = removeColorChannel(imageData, null, effectiveChannelMode, {
-                targetColor: cr.targetColor,
-                tolerance: cr.tolerance,
-                replacementColor: cr.replacementColor,
-                strength: cr.strength / 100
-            });
-            data = imageData.data;
-        } else if (cr.channel) {
-            imageData = removeColorChannel(imageData, cr.channel, effectiveChannelMode, {
-                tolerance: cr.tolerance,
-                replacementColor: cr.replacementColor,
-                strength: cr.strength / 100
-            });
-            data = imageData.data;
+        // Для режимов "replace" и "desaturate" дополнительный проход по пикселям
+        if (cr.mode === 'replace' || cr.mode === 'desaturate') {
+            const targetColor = cr.targetColor;
+            const tolerance = cr.tolerance;
+            const strength = cr.strength / 100;
+            const replacementColor = cr.replacementColor || { r: 255, g: 255, b: 255 };
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                const distance = Math.sqrt(
+                    Math.pow(r - targetColor.r, 2) +
+                    Math.pow(g - targetColor.g, 2) +
+                    Math.pow(b - targetColor.b, 2)
+                );
+
+                if (distance < tolerance * 4.41) { // 4.41 ≈ √(255²×3) / 100: normalises tolerance 0-100 to full RGB distance range
+                    // Restore alpha (was reduced by removeBackgroundByColor) and apply colour change
+                    data[i + 3] = 255;
+                    if (cr.mode === 'replace') {
+                        data[i]     = Math.round(r + (replacementColor.r - r) * strength);
+                        data[i + 1] = Math.round(g + (replacementColor.g - g) * strength);
+                        data[i + 2] = Math.round(b + (replacementColor.b - b) * strength);
+                    } else {
+                        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                        data[i]     = Math.round(r + (gray - r) * strength);
+                        data[i + 1] = Math.round(g + (gray - g) * strength);
+                        data[i + 2] = Math.round(b + (gray - b) * strength);
+                    }
+                }
+            }
         }
     }
 
