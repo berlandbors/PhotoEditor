@@ -8,7 +8,7 @@ var eraserState = {
     active: false,           // Активен ли инструмент
     isErasing: false,        // Идёт ли сейчас рисование
     brushSize: 20,           // Размер кисти (px)
-    brushHardness: 0,        // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
+    brushHardness: 50,       // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
     brushOpacity: 100,       // Прозрачность кисти (10-100%)
     mode: 'erase',           // 'erase' | 'restore' | 'smart'
     lastX: 0,
@@ -242,6 +242,7 @@ function applyErase(x, y) {
     var data = imageData.data;
 
     var brushRadius = eraserState.brushSize / 2;
+    if (brushRadius <= 0) return;
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
 
@@ -256,16 +257,26 @@ function applyErase(x, y) {
             var distance = Math.sqrt(dxInt * dxInt + dyInt * dyInt);
             if (distance > brushRadius) continue;
 
-            // Вычислить силу стирания (с учётом мягкости)
-            // hardness=0 → мягкая кисть (растушёвка от центра), hardness=1 → жёсткая
+            // Вычислить силу стирания (с учётом мягкости и плавной кривой)
+            // hardness=0 → мягкая кисть (плавная растушёвка), hardness=1 → жёсткая
             var strength = 1;
+            var normalizedDistance = distance / brushRadius; // 0..1
+
             if (hardness < 1) {
-                // Мягкая кисть — зона жёсткости от 0 до softRadius, растушёвка до brushRadius
-                var softRadius = brushRadius * hardness;
-                if (distance > softRadius) {
-                    strength = 1 - (distance - softRadius) / (brushRadius - softRadius);
+                if (normalizedDistance <= hardness) {
+                    // Жёсткая зона: полная сила
+                    strength = 1;
+                } else {
+                    // Мягкая зона: плавное затухание с ease-out кривой
+                    var t = (normalizedDistance - hardness) / (1 - hardness);
+                    // Ease-out cubic для более плавного затухания
+                    strength = 1 - (t * t * t);
                 }
+            } else {
+                // Полностью жёсткая кисть
+                strength = 1;
             }
+
             strength *= opacity;
 
             var idx = (py * ec.width + px) * 4;
@@ -280,8 +291,8 @@ function applyErase(x, y) {
                     data[idx + 3] = eraserLerp(data[idx + 3], origData[idx + 3], strength);
                 }
             } else {
-                // Стирание — уменьшить альфа-канал
-                data[idx + 3] = Math.max(0, data[idx + 3] - 255 * strength);
+                // Стирание — плавное затухание альфа-канала
+                data[idx + 3] = Math.round(data[idx + 3] * (1 - strength));
             }
         }
     }
@@ -318,6 +329,7 @@ function applySmartErase(x, y) {
 
     // Удалить похожие цвета в радиусе кисти
     var brushRadius = eraserState.brushSize / 2;
+    if (brushRadius <= 0) return;
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
     var brushRadiusCeil = Math.ceil(brushRadius);
@@ -341,17 +353,22 @@ function applySmartErase(x, y) {
             if (colorDist <= tolerance) {
                 // Растушёвка по краям кисти (hardness=0 → мягкая, hardness=1 → жёсткая)
                 var strength = 1;
+                var normalizedDist = dist / brushRadius; // 0..1
                 if (hardness < 1) {
-                    var softRadius = brushRadius * hardness;
-                    if (dist > softRadius) {
-                        strength = 1 - (dist - softRadius) / (brushRadius - softRadius);
+                    if (normalizedDist <= hardness) {
+                        strength = 1;
+                    } else {
+                        var t = (normalizedDist - hardness) / (1 - hardness);
+                        strength = 1 - (t * t * t);
                     }
+                } else {
+                    strength = 1;
                 }
                 strength *= opacity;
                 // Дополнительное сглаживание по похожести цвета
                 strength *= (1 - colorDist / tolerance);
 
-                data[i + 3] = Math.max(0, data[i + 3] - data[i + 3] * strength);
+                data[i + 3] = Math.round(data[i + 3] * (1 - strength));
             }
         }
     }
