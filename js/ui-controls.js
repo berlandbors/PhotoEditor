@@ -465,6 +465,9 @@ function initUIControls() {
     // Инициализация вкладки удаления фона
     initBackgroundTab();
 
+    // Инициализация инструмента пипетки
+    initEyedropper();
+
     // Инициализация вкладки искажений и пикселизации
     initDistortionTab();
 
@@ -863,6 +866,265 @@ function initBackgroundTab() {
         document.getElementById('luminanceStrengthVal').textContent =
             document.getElementById('luminanceStrength').value;
         applyLuminanceLive();
+    });
+}
+
+// ===== ИНСТРУМЕНТ ПИПЕТКИ ДЛЯ ВЫБОРА ЦВЕТА ФОНА =====
+
+var eyedropperActive = false;
+var originalCanvasCursor = '';
+var eyedropperHoverScheduled = false;
+
+/**
+ * Активировать режим пипетки
+ */
+function activateEyedropper() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('⚠️ Загрузите изображение для использования пипетки');
+        return;
+    }
+
+    eyedropperActive = true;
+    originalCanvasCursor = canvas.style.cursor;
+    canvas.style.cursor = 'crosshair';
+
+    document.getElementById('eyedropperBtn').classList.add('active');
+    document.getElementById('eyedropperBtn').textContent = '✓ Кликните на цвет';
+
+    showHint('💧 Кликните на изображение для выбора цвета');
+}
+
+/**
+ * Деактивировать режим пипетки
+ */
+function deactivateEyedropper() {
+    eyedropperActive = false;
+    canvas.style.cursor = originalCanvasCursor;
+
+    var btn = document.getElementById('eyedropperBtn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.textContent = '💧 Пипетка';
+    }
+
+    // Сбросить предпросмотр рамки color picker'а
+    var bgColorInput = document.getElementById('bgColor');
+    if (bgColorInput) {
+        bgColorInput.style.border = '';
+        bgColorInput.style.boxShadow = '';
+    }
+}
+
+/**
+ * Получить цвет пикселя из canvas
+ * @param {number} canvasX - X координата на canvas
+ * @param {number} canvasY - Y координата на canvas
+ * @returns {{r: number, g: number, b: number}|null}
+ */
+function getPixelColorFromCanvas(canvasX, canvasY) {
+    try {
+        var imageData = ctx.getImageData(canvasX, canvasY, 1, 1);
+        var data = imageData.data;
+        return { r: data[0], g: data[1], b: data[2] };
+    } catch (e) {
+        console.error('Ошибка получения цвета пикселя:', e);
+        return null;
+    }
+}
+
+/**
+ * Получить усреднённый цвет из области sampleSize×sampleSize пикселей
+ * @param {number} centerX
+ * @param {number} centerY
+ * @param {number} [sampleSize=5]
+ * @returns {{r: number, g: number, b: number}|null}
+ */
+function getAveragePixelColor(centerX, centerY, sampleSize) {
+    sampleSize = sampleSize || 5;
+    var halfSize = Math.floor(sampleSize / 2);
+    var sumR = 0, sumG = 0, sumB = 0, count = 0;
+
+    for (var dy = -halfSize; dy <= halfSize; dy++) {
+        for (var dx = -halfSize; dx <= halfSize; dx++) {
+            var x = centerX + dx;
+            var y = centerY + dy;
+
+            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+                continue;
+            }
+
+            try {
+                var imageData = ctx.getImageData(x, y, 1, 1);
+                var data = imageData.data;
+                sumR += data[0];
+                sumG += data[1];
+                sumB += data[2];
+                count++;
+            } catch (e) {
+                // Игнорировать ошибки
+            }
+        }
+    }
+
+    if (count === 0) return null;
+
+    return {
+        r: Math.round(sumR / count),
+        g: Math.round(sumG / count),
+        b: Math.round(sumB / count)
+    };
+}
+
+/**
+ * Конвертировать RGB в hex
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @returns {string} hex вида "#rrggbb"
+ */
+function rgbToHex(r, g, b) {
+    return '#' +
+        r.toString(16).padStart(2, '0') +
+        g.toString(16).padStart(2, '0') +
+        b.toString(16).padStart(2, '0');
+}
+
+/**
+ * Обработчик клика по canvas для пипетки
+ * @param {MouseEvent} e
+ */
+function handleEyedropperClick(e) {
+    if (!eyedropperActive) return;
+
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var canvasX = Math.round((e.clientX - rect.left) * scaleX);
+    var canvasY = Math.round((e.clientY - rect.top) * scaleY);
+
+    if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
+        showHint('⚠️ Кликните внутри изображения');
+        return;
+    }
+
+    var useAverage = document.getElementById('eyedropperAverage') &&
+                     document.getElementById('eyedropperAverage').checked;
+    var color = useAverage
+        ? getAveragePixelColor(canvasX, canvasY, 5)
+        : getPixelColorFromCanvas(canvasX, canvasY);
+
+    if (!color) {
+        showHint('❌ Не удалось получить цвет пикселя');
+        deactivateEyedropper();
+        return;
+    }
+
+    var hexColor = rgbToHex(color.r, color.g, color.b);
+    document.getElementById('bgColor').value = hexColor;
+
+    showHint('✅ Выбран цвет: RGB(' + color.r + ', ' + color.g + ', ' + color.b + ')');
+
+    deactivateEyedropper();
+    applyBackgroundLive();
+}
+
+/**
+ * Обработчик движения мыши для предпросмотра цвета при активной пипетке
+ * @param {MouseEvent} e
+ */
+function handleEyedropperHover(e) {
+    if (!eyedropperActive) return;
+
+    // Throttle via requestAnimationFrame to avoid excessive pixel reads
+    if (eyedropperHoverScheduled) return;
+    eyedropperHoverScheduled = true;
+
+    requestAnimationFrame(function() {
+        eyedropperHoverScheduled = false;
+        if (!eyedropperActive) return;
+
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = canvas.width / rect.width;
+        var scaleY = canvas.height / rect.height;
+        var canvasX = Math.round((e.clientX - rect.left) * scaleX);
+        var canvasY = Math.round((e.clientY - rect.top) * scaleY);
+
+        if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
+            return;
+        }
+
+        var color = getPixelColorFromCanvas(canvasX, canvasY);
+        if (!color) return;
+
+        var hexColor = rgbToHex(color.r, color.g, color.b);
+        var bgColorInput = document.getElementById('bgColor');
+        if (bgColorInput) {
+            bgColorInput.style.border = '3px solid ' + hexColor;
+            bgColorInput.style.boxShadow = '0 0 10px ' + hexColor;
+        }
+    });
+}
+
+/**
+ * Использовать встроенный EyeDropper API (Chrome 95+), с fallback на кастомный
+ */
+function useNativeEyedropper() {
+    if (!window.EyeDropper) {
+        activateEyedropper();
+        return;
+    }
+
+    var eyeDropper = new window.EyeDropper();
+    eyeDropper.open().then(function(result) {
+        document.getElementById('bgColor').value = result.sRGBHex;
+
+        // Показать RGB значения
+        var hex = result.sRGBHex.replace('#', '');
+        var r = parseInt(hex.substring(0, 2), 16);
+        var g = parseInt(hex.substring(2, 4), 16);
+        var b = parseInt(hex.substring(4, 6), 16);
+        showHint('✅ Выбран цвет: RGB(' + r + ', ' + g + ', ' + b + ')');
+
+        applyBackgroundLive();
+    }).catch(function() {
+        showHint('❌ Выбор цвета отменён');
+    });
+}
+
+/**
+ * Инициализация пипетки
+ */
+function initEyedropper() {
+    var eyedropperBtn = document.getElementById('eyedropperBtn');
+
+    if (!eyedropperBtn) {
+        console.warn('Кнопка пипетки не найдена');
+        return;
+    }
+
+    eyedropperBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+
+        if (window.EyeDropper) {
+            useNativeEyedropper();
+        } else {
+            if (eyedropperActive) {
+                deactivateEyedropper();
+            } else {
+                activateEyedropper();
+            }
+        }
+    });
+
+    canvas.addEventListener('click', handleEyedropperClick);
+    canvas.addEventListener('mousemove', handleEyedropperHover);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && eyedropperActive) {
+            showHint('❌ Выбор цвета отменён');
+            deactivateEyedropper();
+        }
     });
 }
 

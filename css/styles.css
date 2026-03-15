@@ -1721,3 +1721,31 @@ input[type="range"]::-moz-range-thumb {
         font-size: 1em;
     }
 }
+
+/* ===== ИНСТРУМЕНТ ПИПЕТКИ ===== */
+
+#eyedropperBtn {
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+#eyedropperBtn:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+#eyedropperBtn.active {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: 2px solid #38ef7d;
+    animation: pulse-eyedropper 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-eyedropper {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(56, 239, 125, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(56, 239, 125, 0);
+    }
+}
