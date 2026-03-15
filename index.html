@@ -572,7 +572,33 @@
 
                     <div class="param-group">
                         <div class="param-label">
-                            <span>Выберите канал</span>
+                            <span>🎯 Режим выбора цвета</span>
+                        </div>
+                        <select id="channelSelectionMode">
+                            <option value="">— Не активно —</option>
+                            <option value="eyedropper">💧 Точный цвет (пипетка)</option>
+                            <option value="range">📊 Диапазон (каналы)</option>
+                        </select>
+                    </div>
+
+                    <!-- Группа для пипетки (скрыта по умолчанию) -->
+                    <div class="param-group" id="channelEyedropperGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>Цвет для удаления</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" id="channelColorPicker" value="#00ff00" style="flex: 0 0 60px; height: 36px;">
+                            <button id="channelEyedropperBtn" class="quick-btn" style="flex: 1;" title="Выбрать цвет с изображения">
+                                💧 Пипетка
+                            </button>
+                        </div>
+                        <span class="hint-text">Используйте пипетку для точного выбора цвета</span>
+                    </div>
+
+                    <!-- Группа для предустановленных каналов (скрыта по умолчанию) -->
+                    <div class="param-group" id="channelRangeGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>Выберите диапазон</span>
                         </div>
                         <select id="channelToRemove">
                             <option value="">— Не выбрано —</option>

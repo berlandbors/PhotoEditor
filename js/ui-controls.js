@@ -468,6 +468,9 @@ function initUIControls() {
     // Инициализация инструмента пипетки
     initEyedropper();
 
+    // Инициализация пипетки для цветовых каналов
+    initChannelEyedropper();
+
     // Инициализация вкладки искажений и пикселизации
     initDistortionTab();
 
@@ -694,8 +697,9 @@ const applyChannelRemovalLive = debounce(function() {
     const layer = layers[activeLayerIndex];
     if (!layer || !layer.image) return;
 
-    const channel = document.getElementById('channelToRemove').value;
-    if (!channel) {
+    const selectionMode = document.getElementById('channelSelectionMode').value;
+
+    if (!selectionMode) {
         layer.channelRemoval = null;
         render();
         return;
@@ -708,7 +712,33 @@ const applyChannelRemovalLive = debounce(function() {
         ? hexToRgb(document.getElementById('replacementColor').value)
         : null;
 
-    layer.channelRemoval = { channel, mode, tolerance, strength, replacementColor };
+    if (selectionMode === 'eyedropper') {
+        const targetColor = hexToRgb(document.getElementById('channelColorPicker').value);
+        layer.channelRemoval = {
+            mode: 'eyedropper',
+            targetColor: targetColor,
+            channelMode: mode,
+            tolerance: tolerance,
+            strength: strength,
+            replacementColor: replacementColor
+        };
+    } else if (selectionMode === 'range') {
+        const channel = document.getElementById('channelToRemove').value;
+        if (!channel) {
+            layer.channelRemoval = null;
+            render();
+            return;
+        }
+        layer.channelRemoval = {
+            mode: 'range',
+            channel: channel,
+            channelMode: mode,
+            tolerance: tolerance,
+            strength: strength,
+            replacementColor: replacementColor
+        };
+    }
+
     render();
 }, 150);
 
@@ -754,7 +784,11 @@ function resetChannelSection() {
     const layer = layers[activeLayerIndex];
     if (!layer) return;
     layer.channelRemoval = null;
+    document.getElementById('channelSelectionMode').value = '';
+    document.getElementById('channelEyedropperGroup').style.display = 'none';
+    document.getElementById('channelRangeGroup').style.display = 'none';
     document.getElementById('channelToRemove').value = '';
+    document.getElementById('channelColorPicker').value = '#00ff00';
     document.getElementById('channelMode').value = 'transparent';
     document.getElementById('replacementGroup').style.display = 'none';
     document.getElementById('channelTolerance').value = 20;
@@ -810,6 +844,21 @@ function initBackgroundTab() {
 
     // Цвет замены для канала
     document.getElementById('replacementColor').addEventListener('input', function() {
+        applyChannelRemovalLive();
+    });
+
+    // Переключатель режима выбора цвета для каналов
+    document.getElementById('channelSelectionMode').addEventListener('change', function(e) {
+        const mode = e.target.value;
+        document.getElementById('channelEyedropperGroup').style.display =
+            mode === 'eyedropper' ? 'block' : 'none';
+        document.getElementById('channelRangeGroup').style.display =
+            mode === 'range' ? 'block' : 'none';
+        applyChannelRemovalLive();
+    });
+
+    // Изменение color picker для каналов
+    document.getElementById('channelColorPicker').addEventListener('input', function() {
         applyChannelRemovalLive();
     });
 
@@ -1124,6 +1173,104 @@ function initEyedropper() {
         if (e.key === 'Escape' && eyedropperActive) {
             showHint('❌ Выбор цвета отменён');
             deactivateEyedropper();
+        }
+    });
+}
+
+// ===== ПИПЕТКА ДЛЯ СЕКЦИИ ЦВЕТОВЫХ КАНАЛОВ =====
+
+var channelEyedropperActive = false;
+
+/**
+ * Активировать пипетку для цветовых каналов
+ */
+function activateChannelEyedropper() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('⚠️ Загрузите изображение для использования пипетки');
+        return;
+    }
+
+    channelEyedropperActive = true;
+    canvas.style.cursor = 'crosshair';
+
+    document.getElementById('channelEyedropperBtn').classList.add('active');
+    document.getElementById('channelEyedropperBtn').textContent = '✓ Кликните на цвет';
+
+    showHint('💧 Кликните на изображение для выбора цвета');
+}
+
+/**
+ * Деактивировать пипетку для цветовых каналов
+ */
+function deactivateChannelEyedropper() {
+    channelEyedropperActive = false;
+    canvas.style.cursor = '';
+
+    var btn = document.getElementById('channelEyedropperBtn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.textContent = '💧 Пипетка';
+    }
+}
+
+/**
+ * Обработчик клика для пипетки цветовых каналов
+ */
+function handleChannelEyedropperClick(e) {
+    if (!channelEyedropperActive) return;
+
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var canvasX = Math.round((e.clientX - rect.left) * scaleX);
+    var canvasY = Math.round((e.clientY - rect.top) * scaleY);
+
+    if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
+        showHint('⚠️ Кликните внутри изображения');
+        return;
+    }
+
+    var color = getAveragePixelColor(canvasX, canvasY, 5);
+
+    if (!color) {
+        showHint('❌ Не удалось получить цвет пикселя');
+        deactivateChannelEyedropper();
+        return;
+    }
+
+    var hexColor = rgbToHex(color.r, color.g, color.b);
+    document.getElementById('channelColorPicker').value = hexColor;
+
+    showHint('✅ Выбран цвет: RGB(' + color.r + ', ' + color.g + ', ' + color.b + ')');
+
+    deactivateChannelEyedropper();
+    applyChannelRemovalLive();
+}
+
+/**
+ * Инициализация пипетки для цветовых каналов
+ */
+function initChannelEyedropper() {
+    var btn = document.getElementById('channelEyedropperBtn');
+    if (!btn || btn._channelEyedropperInitialized) return;
+    btn._channelEyedropperInitialized = true;
+
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (channelEyedropperActive) {
+            deactivateChannelEyedropper();
+        } else {
+            activateChannelEyedropper();
+        }
+    });
+
+    canvas.addEventListener('click', handleChannelEyedropperClick);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && channelEyedropperActive) {
+            showHint('❌ Выбор цвета отменён');
+            deactivateChannelEyedropper();
         }
     });
 }
