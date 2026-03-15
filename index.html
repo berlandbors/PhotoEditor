@@ -819,6 +819,40 @@
                         <input type="range" id="smartEraseTolerance" min="1" max="100" value="30">
                     </div>
 
+                    <!-- Защита краёв -->
+                    <div class="param-group" id="smartEraseAdvancedGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>🛡️ Защита краёв</span>
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="smartEdgeDetection" checked
+                                   style="width: 18px; height: 18px; cursor: pointer;">
+                            <span>Останавливать на границах</span>
+                        </label>
+                    </div>
+
+                    <div class="param-group" id="smartEdgeSensitivityGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>📐 Чувствительность краёв</span>
+                            <span class="param-value" id="smartEdgeSensitivityVal">30</span>
+                        </div>
+                        <input type="range" id="smartEdgeSensitivity" min="1" max="100" value="30">
+                        <small style="opacity: 0.7; font-size: 11px;">Меньше = мягче, Больше = строже</small>
+                    </div>
+
+                    <div class="param-group" id="smartOptionsGroup" style="display:none;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+                            <input type="checkbox" id="smartRespectAlpha" checked
+                                   style="width: 18px; height: 18px; cursor: pointer;">
+                            <span>👻 Учитывать прозрачность</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="smartGradientTolerance" checked
+                                   style="width: 18px; height: 18px; cursor: pointer;">
+                            <span>🌈 Плавное затухание</span>
+                        </label>
+                    </div>
+
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
 
                     <!-- История действий -->
