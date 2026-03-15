@@ -8,11 +8,11 @@ var eraserState = {
     active: false,           // Активен ли инструмент
     isErasing: false,        // Идёт ли сейчас рисование
     brushSize: 20,           // Размер кисти (px)
-    brushHardness: 50,       // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
+    brushHardness: 0,        // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
     brushOpacity: 100,       // Прозрачность кисти (10-100%)
     mode: 'erase',           // 'erase' | 'restore' | 'smart'
     featherMode: 'cosine',   // 'cosine' | 'quadratic' | 'linear' | 'cubic'
-    featherRadius: 1.2,      // Множитель радиуса для расширенной растушевки (1.0-2.0)
+    featherRadius: 2.5,      // Множитель радиуса для расширенной растушевки (1.0-5.0)
     lastX: 0,
     lastY: 0,
     originalImageData: null, // Резервная копия для восстановления
@@ -287,6 +287,9 @@ function applyErase(x, y) {
                     var maxDist = eraserState.featherRadius; // Максимальное расстояние для растушевки
                     if (normalizedDistance < maxDist) {
                         var t = (normalizedDistance - hardness) / (maxDist - hardness);
+                        // Применить сглаживание для более широкого диапазона
+                        // Показатель < 1 расширяет зону мягкого перехода (0.7 — экспериментально подобранное значение)
+                        t = Math.pow(t, 0.7);
                         strength = calculateFeatherStrength(t, eraserState.featherMode);
                     } else {
                         strength = 0;
@@ -398,6 +401,9 @@ function applySmartErase(x, y) {
                         var maxDist = eraserState.featherRadius;
                         if (normalizedDist < maxDist) {
                             var t = (normalizedDist - hardness) / (maxDist - hardness);
+                            // Применить сглаживание для более широкого диапазона
+                            // Показатель < 1 расширяет зону мягкого перехода (0.7 — экспериментально подобранное значение)
+                            t = Math.pow(t, 0.7);
                             strength = calculateFeatherStrength(t, eraserState.featherMode);
                         } else {
                             strength = 0;
@@ -624,6 +630,9 @@ function calculateFeatherStrength(t, mode) {
     switch (mode) {
         case 'cosine':
             // Самое плавное затухание (как в Photoshop)
+            // Дополнительное сглаживание Hermite перед косинусом даёт ещё более мягкий
+            // начало и конец перехода (S-образная кривая → косинусное затухание)
+            t = t * t * (3 - 2 * t); // Hermite interpolation
             return (Math.cos(t * Math.PI) + 1) / 2;
         case 'quadratic':
             // Среднее затухание
@@ -649,6 +658,22 @@ function initEraserTool() {
             e.preventDefault();
         }
     });
+
+    // Обработчики для контролов растушёвки
+    var featherSlider = document.getElementById('eraserFeather');
+    if (featherSlider) {
+        featherSlider.addEventListener('input', function(e) {
+            eraserState.featherRadius = parseFloat(e.target.value);
+            document.getElementById('eraserFeatherVal').textContent = eraserState.featherRadius.toFixed(1) + 'x';
+        });
+    }
+
+    var featherModeSelect = document.getElementById('eraserFeatherMode');
+    if (featherModeSelect) {
+        featherModeSelect.addEventListener('change', function(e) {
+            eraserState.featherMode = e.target.value;
+        });
+    }
 }
 
 // Горячие клавиши для ластика
