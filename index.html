@@ -520,8 +520,19 @@
                         <div class="param-label">
                             <span>Цвет для удаления</span>
                         </div>
-                        <input type="color" id="bgColor" value="#00ff00">
-                        <span class="hint-text">Зелёный для Chroma Key</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" id="bgColor" value="#00ff00" style="flex: 0 0 60px; height: 36px;">
+                            <button id="eyedropperBtn" class="quick-btn" style="flex: 1;" title="Выбрать цвет с изображения">
+                                💧 Пипетка
+                            </button>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9em;">
+                                <input type="checkbox" id="eyedropperAverage" checked>
+                                <span>Усреднить цвет (область 5×5 px)</span>
+                            </label>
+                        </div>
+                        <span class="hint-text">Используйте пипетку или выберите цвет вручную</span>
                     </div>
 
                     <div class="param-group">
