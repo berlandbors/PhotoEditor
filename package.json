@@ -1,0 +1,24 @@
+{
+  "name": "photoeditor",
+  "version": "1.0.0",
+  "description": "**PhotoEditor** — это веб-приложение для редактирования и слияния фотографий с поддержкой множества фильтров и эффектов. Работает полностью в браузере без необходимости установки и без серверной части.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berlandbors/PhotoEditor.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/berlandbors/PhotoEditor/issues"
+  },
+  "homepage": "https://github.com/berlandbors/PhotoEditor#readme",
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
+}
