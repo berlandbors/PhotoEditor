@@ -1,26 +1,81 @@
 /**
- * background-removal.js — удаление фона и цветовых каналов
+ * background-removal.js — продвинутое удаление фона и цветовых каналов
+ *
+ * Возможности:
+ * - Chroma Key (RGB и YUV режимы)
+ * - Удаление по цветовым каналам (HSL)
+ * - Удаление теней/бликов
+ * - Автоопределение фона (k-means кластеризация)
+ * - Удаление по маске/краям
+ * - Кэширование и оптимизация производительности
+ *
+ * @version 2.0.0
+ * @author PhotoEditor Team
  */
 
 'use strict';
 
-// Шаг квантования цвета при группировке пикселей краёв
-const COLOR_GROUPING_FACTOR = 10;
+// Конфигурация алгоритмов удаления фона
+const CONFIG = {
+    // Квантование цвета при группировке
+    COLOR_GROUPING_FACTOR: 10,
 
-// Минимальное значение feather, при котором применяется дополнительное гауссово размытие
-const MIN_FEATHER_FOR_BLUR = 2;
+    // Параметры размытия краёв
+    MIN_FEATHER_FOR_BLUR: 2,
+    FEATHER_TO_BLUR_RATIO: 8,
 
-// Коэффициент перевода feather в радиус гауссового размытия
-const FEATHER_TO_BLUR_RATIO = 8;
+    // Детекция краёв (Sobel)
+    EDGE_DETECTION_THRESHOLD: 128,
+
+    // Удаление цветовых каналов
+    MIN_SATURATION_FOR_COLOR_REMOVAL: 15,
+
+    // Значения по умолчанию
+    DEFAULT_CHROMA_TOLERANCE: 30,
+    DEFAULT_AUTO_TOLERANCE: 40,
+    DEFAULT_FEATHER: 10,
+
+    // Кэширование
+    HSL_CACHE_LIMIT: 50000,
+
+    // k-means кластеризация
+    KMEANS_MAX_ITERATIONS: 10,
+    KMEANS_CONVERGENCE_THRESHOLD: 1
+};
+
+// Обратная совместимость
+const COLOR_GROUPING_FACTOR = CONFIG.COLOR_GROUPING_FACTOR;
+const MIN_FEATHER_FOR_BLUR = CONFIG.MIN_FEATHER_FOR_BLUR;
+const FEATHER_TO_BLUR_RATIO = CONFIG.FEATHER_TO_BLUR_RATIO;
+
+// Кэш для RGB→HSL преобразований (ограничен HSL_CACHE_LIMIT записями для экономии памяти)
+let hslCache = {};
+let hslCacheSize = 0;
+
+/**
+ * Очистить кэш RGB→HSL (вызывать при переключении изображений)
+ */
+function clearHSLCache() {
+    hslCache = {};
+    hslCacheSize = 0;
+}
 
 /**
  * Конвертировать RGB в HSL (hue в градусах 0-360)
- * @param {number} r
- * @param {number} g
- * @param {number} b
+ * @param {number} r - Красный (0-255)
+ * @param {number} g - Зелёный (0-255)
+ * @param {number} b - Синий (0-255)
  * @returns {[number, number, number]} [h(0-360), s(0-100), l(0-100)]
  */
 function rgbToHSL(r, g, b) {
+    // Создать ключ (pack RGB в 24-bit integer)
+    const key = (r << 16) | (g << 8) | b;
+
+    // Проверить кэш
+    if (hslCache[key]) {
+        return hslCache[key];
+    }
+
     r /= 255; g /= 255; b /= 255;
     const max = Math.max(r, g, b), min = Math.min(r, g, b);
     let h, s;
@@ -37,21 +92,74 @@ function rgbToHSL(r, g, b) {
             case b: h = ((r - g) / d + 4) / 6; break;
         }
     }
-    return [h * 360, s * 100, l * 100];
+
+    const result = [h * 360, s * 100, l * 100];
+
+    // Сохранить в кэш (с лимитом памяти)
+    if (hslCacheSize < CONFIG.HSL_CACHE_LIMIT) {
+        hslCache[key] = result;
+        hslCacheSize++;
+    }
+
+    return result;
+}
+
+/**
+ * Конвертировать RGB в YUV (для точного chroma keying)
+ * @param {number} r - Красный (0-255)
+ * @param {number} g - Зелёный (0-255)
+ * @param {number} b - Синий (0-255)
+ * @returns {[number, number, number]} [Y(0-255), U(-127..127), V(-127..127)]
+ */
+function rgbToYUV(r, g, b) {
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    const u = (b - y) * 0.565;
+    const v = (r - y) * 0.713;
+    return [y, u, v];
 }
 
 /**
  * Удалить фон по цветовому диапазону (Chroma Key)
- * @param {ImageData} imageData
- * @param {Object} options - { targetColor: {r,g,b}, tolerance, feather, strength }
- * @returns {ImageData}
+ * @param {ImageData} imageData - Данные изображения (будет изменён in-place!)
+ * @param {Object} options - Параметры удаления фона
+ * @param {{r: number, g: number, b: number}} [options.targetColor={r:0,g:255,b:0}] - Целевой цвет RGB (каждый канал 0-255)
+ * @param {number} [options.tolerance=30] - Допуск цветового расстояния (0-441, где 441 ≈ sqrt(3×255²))
+ * @param {number} [options.feather=0] - Размытие краёв прозрачности (0-100 пикселей)
+ * @param {number} [options.strength=1] - Сила эффекта (0.0-1.0, где 1.0 = полное удаление)
+ * @param {boolean} [options.useYUV=false] - Использовать YUV-алгоритм для улучшенной точности
+ * @param {Function} [onProgress] - Колбэк прогресса: onProgress(progressPercent: 0-1)
+ * @returns {ImageData} Модифицированный объект imageData
+ * @throws {Error} Если imageData невалидна или параметры вне диапазона
  */
-function removeBackgroundByColor(imageData, options) {
+function removeBackgroundByColor(imageData, options, onProgress) {
+    // Валидация
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
+
+    // Если включен режим YUV, использовать улучшенный алгоритм
+    if (options && options.useYUV) {
+        return removeBackgroundByColorYUV(imageData, options, onProgress);
+    }
+
     const data = imageData.data;
-    const targetColor = options.targetColor || { r: 0, g: 255, b: 0 };
-    const tolerance = options.tolerance || 30;
-    const feather = options.feather || 0;
-    const strength = options.strength !== undefined ? options.strength : 1;
+    const targetColor = (options && options.targetColor) || { r: 0, g: 255, b: 0 };
+
+    // Проверить диапазон RGB
+    ['r', 'g', 'b'].forEach(function(channel) {
+        if (targetColor[channel] < 0 || targetColor[channel] > 255) {
+            throw new Error('targetColor.' + channel + ' must be in range 0-255');
+        }
+    });
+
+    // Ограничить параметры
+    const tolerance = Math.max(0, Math.min(441, (options && options.tolerance) || CONFIG.DEFAULT_CHROMA_TOLERANCE));
+    const feather = Math.max(0, Math.min(100, (options && options.feather) || 0));
+    const strength = Math.max(0, Math.min(1, (options && options.strength !== undefined) ? options.strength : 1));
+
+    const totalPixels = data.length / 4;
+    const progressUpdateInterval = Math.max(1, Math.floor(totalPixels / 100));
+    let processedPixels = 0;
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
@@ -81,6 +189,13 @@ function removeBackgroundByColor(imageData, options) {
             // Интерполируем с учётом силы эффекта
             data[i + 3] = Math.round(originalAlpha + (targetAlpha - originalAlpha) * strength);
         }
+
+        processedPixels++;
+
+        // Обновить прогресс
+        if (onProgress && processedPixels % progressUpdateInterval === 0) {
+            onProgress(processedPixels / totalPixels);
+        }
     }
 
     // Гауссово размытие альфа-канала для дополнительного смягчения краёв
@@ -89,16 +204,96 @@ function removeBackgroundByColor(imageData, options) {
         applyGaussianBlurToAlpha(imageData, blurRadius);
     }
 
+    if (onProgress) onProgress(1.0);
+
+    return imageData;
+}
+
+/**
+ * Удалить фон по цветовому диапазону с использованием YUV (улучшенная точность)
+ * @param {ImageData} imageData - Данные изображения (будет изменён in-place!)
+ * @param {Object} options - { targetColor: {r,g,b}, tolerance, feather, strength }
+ * @param {Function} [onProgress] - Колбэк прогресса: onProgress(progressPercent: 0-1)
+ * @returns {ImageData}
+ * @throws {Error} Если imageData невалидна
+ */
+function removeBackgroundByColorYUV(imageData, options, onProgress) {
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
+
+    const data = imageData.data;
+    const targetColor = (options && options.targetColor) || { r: 0, g: 255, b: 0 };
+    const tolerance = Math.max(0, Math.min(180, (options && options.tolerance) || CONFIG.DEFAULT_CHROMA_TOLERANCE)); // YUV: max ≈ 180
+    const feather = Math.max(0, Math.min(100, (options && options.feather) || 0));
+    const strength = Math.max(0, Math.min(1, (options && options.strength !== undefined) ? options.strength : 1));
+
+    // Конвертировать целевой цвет в YUV
+    const targetYUV = rgbToYUV(targetColor.r, targetColor.g, targetColor.b);
+
+    const totalPixels = data.length / 4;
+    const progressUpdateInterval = Math.max(1, Math.floor(totalPixels / 100));
+    let processedPixels = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const originalAlpha = data[i + 3];
+
+        // Конвертировать пиксель в YUV
+        const pixelYUV = rgbToYUV(r, g, b);
+
+        // Расстояние только по цветности (U, V), игнорируя яркость (Y)
+        const chromaDistance = Math.sqrt(
+            Math.pow(pixelYUV[1] - targetYUV[1], 2) +
+            Math.pow(pixelYUV[2] - targetYUV[2], 2)
+        );
+
+        // Если близко к целевому цвету
+        if (chromaDistance < tolerance) {
+            let targetAlpha;
+            // Плавный переход (feather)
+            if (feather > 0 && chromaDistance > tolerance - feather) {
+                const t = (chromaDistance - (tolerance - feather)) / feather;
+                const smoothT = t * t * (3 - 2 * t);
+                targetAlpha = Math.round(255 * smoothT);
+            } else {
+                targetAlpha = 0;
+            }
+            data[i + 3] = Math.round(originalAlpha + (targetAlpha - originalAlpha) * strength);
+        }
+
+        processedPixels++;
+
+        // Обновить прогресс
+        if (onProgress && processedPixels % progressUpdateInterval === 0) {
+            onProgress(processedPixels / totalPixels);
+        }
+    }
+
+    // Гауссово размытие альфа-канала
+    if (feather > MIN_FEATHER_FOR_BLUR) {
+        const blurRadius = Math.max(1, Math.round(feather / FEATHER_TO_BLUR_RATIO));
+        applyGaussianBlurToAlpha(imageData, blurRadius);
+    }
+
+    if (onProgress) onProgress(1.0);
+
     return imageData;
 }
 
 /**
  * Применить гауссово размытие к альфа-каналу (для мягких краёв)
- * @param {ImageData} imageData
+ * @param {ImageData} imageData - Данные изображения (будет изменён in-place!)
  * @param {number} radius - радиус размытия (1-10)
  * @returns {ImageData}
+ * @throws {Error} Если imageData невалидна
  */
 function applyGaussianBlurToAlpha(imageData, radius) {
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
     radius = Math.max(1, Math.round(radius));
     const width = imageData.width;
     const height = imageData.height;
@@ -154,27 +349,32 @@ function applyGaussianBlurToAlpha(imageData, radius) {
 
 /**
  * Удалить определённый цветовой канал
- * @param {ImageData} imageData
+ * @param {ImageData} imageData - Данные изображения (будет изменён in-place!)
  * @param {string} channel - 'red', 'green', 'blue', 'yellow', 'orange', 'cyan', 'magenta', 'pink'
  * @param {string} mode - 'transparent' | 'replace' | 'desaturate'
  * @param {Object} options - { tolerance, replacementColor, strength }
+ * @returns {ImageData}
+ * @throws {Error} Если imageData невалидна или channel неизвестен
  */
 function removeColorChannel(imageData, channel, mode, options) {
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
     options = options || {};
     const data = imageData.data;
-    const tolerance = options.tolerance || 20;
+    const tolerance = Math.max(0, options.tolerance || 20);
     const replacementColor = options.replacementColor || { r: 255, g: 255, b: 255 };
-    const strength = options.strength !== undefined ? options.strength : 1;
+    const strength = Math.max(0, Math.min(1, options.strength !== undefined ? options.strength : 1));
 
     // HSL диапазоны для каждого канала (hue в градусах)
     const channelRanges = {
         red:     { min: 345, max: 15 },
-        orange:  { min: 15,  max: 45 },
-        yellow:  { min: 45,  max: 75 },
-        green:   { min: 75,  max: 165 },
+        orange:  { min: 15,  max: 35 },
+        yellow:  { min: 35,  max: 65 },
+        green:   { min: 65,  max: 165 },
         cyan:    { min: 165, max: 195 },
-        blue:    { min: 195, max: 255 },
-        magenta: { min: 255, max: 315 },
+        blue:    { min: 195, max: 265 },
+        magenta: { min: 265, max: 315 },
         pink:    { min: 315, max: 345 }
     };
 
@@ -201,7 +401,7 @@ function removeColorChannel(imageData, channel, mode, options) {
         }
 
         // Применить обработку только к насыщенным цветам
-        if (inRange && s > 15) {
+        if (inRange && s > CONFIG.MIN_SATURATION_FOR_COLOR_REMOVAL) {
             switch (mode) {
                 case 'transparent':
                     data[i + 3] = Math.round(data[i + 3] * (1 - strength));
@@ -229,16 +429,21 @@ function removeColorChannel(imageData, channel, mode, options) {
 
 /**
  * Удалить тени или блики
- * @param {ImageData} imageData
+ * @param {ImageData} imageData - Данные изображения (будет изменён in-place!)
  * @param {string} type - 'shadows' | 'highlights'
  * @param {number} threshold - порог яркости (0-255)
  * @param {number} feather - размытие краёв (0-100)
- * @param {number} strength - сила эффекта (0-1)
+ * @param {number} strength - сила эффекта (0.0-1.0)
+ * @returns {ImageData}
+ * @throws {Error} Если imageData невалидна
  */
 function removeLuminanceRange(imageData, type, threshold, feather, strength) {
-    threshold = threshold || 50;
-    feather = feather || 0;
-    strength = strength !== undefined ? strength : 1;
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
+    threshold = Math.max(0, Math.min(255, threshold || 50));
+    feather = Math.max(0, Math.min(100, feather || 0));
+    strength = Math.max(0, Math.min(1, strength !== undefined ? strength : 1));
     const data = imageData.data;
 
     for (let i = 0; i < data.length; i += 4) {
@@ -289,7 +494,7 @@ function removeLuminanceRange(imageData, type, threshold, feather, strength) {
 /**
  * Edge Detection (алгоритм Sobel)
  * @param {ImageData} imageData
- * @returns {Uint8ClampedArray} - карта границ
+ * @returns {Uint8ClampedArray} - карта границ (255 = граница, 0 = фон)
  */
 function detectEdges(imageData) {
     const width = imageData.width;
@@ -316,7 +521,7 @@ function detectEdges(imageData) {
             }
 
             const magnitude = Math.sqrt(gx * gx + gy * gy);
-            edges[y * width + x] = magnitude > 128 ? 255 : 0;
+            edges[y * width + x] = magnitude > CONFIG.EDGE_DETECTION_THRESHOLD ? 255 : 0;
         }
     }
 
@@ -324,66 +529,150 @@ function detectEdges(imageData) {
 }
 
 /**
- * Найти доминирующий цвет фона (анализ краёв изображения)
+ * Найти доминирующий цвет фона используя k-means кластеризацию
  * @param {ImageData} imageData
+ * @param {number} [numClusters=3] - Количество кластеров для поиска
  * @returns {{r: number, g: number, b: number}}
  */
-function findDominantBackgroundColor(imageData) {
+function findDominantBackgroundColor(imageData, numClusters) {
+    numClusters = numClusters || 3;
     const data = imageData.data;
     const width = imageData.width;
     const height = imageData.height;
 
-    const colorCounts = {};
-
     // Собрать цвета с краёв (top, bottom, left, right)
-    const edgePixels = [];
+    const edgeColors = [];
 
     // Верхний и нижний края
     for (let x = 0; x < width; x++) {
-        edgePixels.push(x); // Верх
-        edgePixels.push((height - 1) * width + x); // Низ
+        edgeColors.push([data[x * 4], data[x * 4 + 1], data[x * 4 + 2]]); // Верх
+        const bottomIdx = ((height - 1) * width + x) * 4;
+        edgeColors.push([data[bottomIdx], data[bottomIdx + 1], data[bottomIdx + 2]]); // Низ
     }
 
     // Левый и правый края
     for (let y = 0; y < height; y++) {
-        edgePixels.push(y * width); // Лево
-        edgePixels.push(y * width + width - 1); // Право
+        const leftIdx = y * width * 4;
+        edgeColors.push([data[leftIdx], data[leftIdx + 1], data[leftIdx + 2]]); // Лево
+        const rightIdx = (y * width + width - 1) * 4;
+        edgeColors.push([data[rightIdx], data[rightIdx + 1], data[rightIdx + 2]]); // Право
     }
 
-    edgePixels.forEach(function(idx) {
-        const i = idx * 4;
-        // Округлить до COLOR_GROUPING_FACTOR для группировки похожих цветов
-        const r = Math.round(data[i] / COLOR_GROUPING_FACTOR) * COLOR_GROUPING_FACTOR;
-        const g = Math.round(data[i + 1] / COLOR_GROUPING_FACTOR) * COLOR_GROUPING_FACTOR;
-        const b = Math.round(data[i + 2] / COLOR_GROUPING_FACTOR) * COLOR_GROUPING_FACTOR;
-        const key = r + ',' + g + ',' + b;
-        colorCounts[key] = (colorCounts[key] || 0) + 1;
-    });
+    // k-means кластеризация
+    const clusters = kMeansClustering(edgeColors, numClusters, CONFIG.KMEANS_MAX_ITERATIONS);
 
-    // Найти самый частый
-    let maxCount = 0;
-    let dominantColor = { r: 255, g: 255, b: 255 };
+    // Если кластеры пустые, вернуть белый
+    if (clusters.length === 0) {
+        return { r: 255, g: 255, b: 255 };
+    }
 
-    Object.keys(colorCounts).forEach(function(key) {
-        const count = colorCounts[key];
-        if (count > maxCount) {
-            maxCount = count;
-            const parts = key.split(',');
-            dominantColor = {
-                r: parseInt(parts[0], 10),
-                g: parseInt(parts[1], 10),
-                b: parseInt(parts[2], 10)
-            };
+    // Найти самый большой кластер
+    let largestCluster = clusters[0];
+    for (let i = 1; i < clusters.length; i++) {
+        if (clusters[i].size > largestCluster.size) {
+            largestCluster = clusters[i];
         }
-    });
+    }
 
-    return dominantColor;
+    return {
+        r: Math.round(largestCluster.centroid[0]),
+        g: Math.round(largestCluster.centroid[1]),
+        b: Math.round(largestCluster.centroid[2])
+    };
+}
+
+/**
+ * k-means кластеризация для массива RGB цветов
+ * @param {Array<[number,number,number]>} colors - Массив [r,g,b]
+ * @param {number} k - Количество кластеров
+ * @param {number} maxIterations - Максимум итераций
+ * @returns {Array<{centroid: [number,number,number], size: number}>}
+ */
+function kMeansClustering(colors, k, maxIterations) {
+    if (colors.length < k) k = colors.length;
+    if (k === 0) return [];
+
+    // Инициализация: выбрать k случайных центроидов
+    const centroids = [];
+    for (let i = 0; i < k; i++) {
+        const randomIndex = Math.floor(Math.random() * colors.length);
+        centroids.push(colors[randomIndex].slice()); // Copy
+    }
+
+    let clusters = [];
+
+    // Итерации k-means
+    for (let iter = 0; iter < maxIterations; iter++) {
+        // Создать пустые кластеры
+        clusters = [];
+        for (let i = 0; i < k; i++) {
+            clusters.push({ centroid: centroids[i], colors: [], size: 0 });
+        }
+
+        // Назначить каждый цвет к ближайшему центроиду
+        for (let i = 0; i < colors.length; i++) {
+            const color = colors[i];
+            let minDist = Infinity;
+            let closestCluster = 0;
+
+            for (let j = 0; j < k; j++) {
+                const dist = Math.sqrt(
+                    Math.pow(color[0] - centroids[j][0], 2) +
+                    Math.pow(color[1] - centroids[j][1], 2) +
+                    Math.pow(color[2] - centroids[j][2], 2)
+                );
+
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestCluster = j;
+                }
+            }
+
+            clusters[closestCluster].colors.push(color);
+            clusters[closestCluster].size++;
+        }
+
+        // Пересчитать центроиды
+        let converged = true;
+        for (let i = 0; i < k; i++) {
+            if (clusters[i].colors.length === 0) continue;
+
+            let sumR = 0, sumG = 0, sumB = 0;
+            for (let j = 0; j < clusters[i].colors.length; j++) {
+                sumR += clusters[i].colors[j][0];
+                sumG += clusters[i].colors[j][1];
+                sumB += clusters[i].colors[j][2];
+            }
+
+            const newCentroid = [
+                sumR / clusters[i].colors.length,
+                sumG / clusters[i].colors.length,
+                sumB / clusters[i].colors.length
+            ];
+
+            // Проверить сходимость
+            if (Math.abs(newCentroid[0] - centroids[i][0]) > CONFIG.KMEANS_CONVERGENCE_THRESHOLD ||
+                Math.abs(newCentroid[1] - centroids[i][1]) > CONFIG.KMEANS_CONVERGENCE_THRESHOLD ||
+                Math.abs(newCentroid[2] - centroids[i][2]) > CONFIG.KMEANS_CONVERGENCE_THRESHOLD) {
+                converged = false;
+            }
+
+            centroids[i] = newCentroid;
+            clusters[i].centroid = newCentroid;
+        }
+
+        // Выйти, если сошлось
+        if (converged) break;
+    }
+
+    return clusters;
 }
 
 /**
  * Автоматическое удаление фона (комбинация методов)
  * @param {ImageData} imageData
  * @param {Object} options - { tolerance, feather, strength }
+ * @returns {ImageData}
  */
 function autoRemoveBackground(imageData, options) {
     options = options || {};
@@ -394,8 +683,88 @@ function autoRemoveBackground(imageData, options) {
     // 2. Удалить фон по цвету
     return removeBackgroundByColor(imageData, {
         targetColor: backgroundColor,
-        tolerance: options.tolerance || 40,
-        feather: options.feather || 10,
+        tolerance: options.tolerance || CONFIG.DEFAULT_AUTO_TOLERANCE,
+        feather: options.feather || CONFIG.DEFAULT_FEATHER,
         strength: options.strength !== undefined ? options.strength : 1
     });
+}
+
+/**
+ * Удалить фон используя бинарную маску
+ * @param {ImageData} imageData - Изображение для обработки
+ * @param {Uint8ClampedArray} mask - Маска (255 = сохранить, 0 = удалить)
+ * @param {number} [feather=5] - Размытие краёв маски (0-50)
+ * @returns {ImageData}
+ * @throws {Error} Если imageData невалидна или размер маски не совпадает с изображением
+ */
+function removeBackgroundByMask(imageData, mask, feather) {
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
+    if (!mask || mask.length !== imageData.width * imageData.height) {
+        throw new Error('Mask size must match image dimensions');
+    }
+
+    feather = Math.max(0, Math.min(50, feather !== undefined ? feather : 5));
+    const data = imageData.data;
+
+    // Применить маску к альфа-каналу
+    for (let i = 0; i < mask.length; i++) {
+        const alpha = mask[i]; // 0 или 255
+        data[i * 4 + 3] = Math.round(data[i * 4 + 3] * (alpha / 255));
+    }
+
+    // Размыть края
+    if (feather > 0) {
+        const blurRadius = Math.max(1, Math.round(feather / FEATHER_TO_BLUR_RATIO));
+        applyGaussianBlurToAlpha(imageData, blurRadius);
+    }
+
+    return imageData;
+}
+
+/**
+ * Автоматическое удаление фона с использованием детекции краёв
+ * @param {ImageData} imageData
+ * @param {Object} options - { edgeThreshold, invertMask, feather }
+ * @returns {ImageData}
+ */
+function autoRemoveBackgroundByEdges(imageData, options) {
+    options = options || {};
+    const invertMask = options.invertMask || false;
+    const feather = options.feather !== undefined ? options.feather : CONFIG.DEFAULT_FEATHER;
+
+    // Детектировать края
+    const edgeMask = detectEdges(imageData);
+
+    // Инвертировать маску если нужно (удалить края вместо фона)
+    if (invertMask) {
+        for (let i = 0; i < edgeMask.length; i++) {
+            edgeMask[i] = 255 - edgeMask[i];
+        }
+    }
+
+    // Применить маску
+    return removeBackgroundByMask(imageData, edgeMask, feather);
+}
+
+// Экспорт для тестирования (только в Node.js)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        rgbToHSL: rgbToHSL,
+        rgbToYUV: rgbToYUV,
+        clearHSLCache: clearHSLCache,
+        removeBackgroundByColor: removeBackgroundByColor,
+        removeBackgroundByColorYUV: removeBackgroundByColorYUV,
+        removeColorChannel: removeColorChannel,
+        removeLuminanceRange: removeLuminanceRange,
+        applyGaussianBlurToAlpha: applyGaussianBlurToAlpha,
+        detectEdges: detectEdges,
+        findDominantBackgroundColor: findDominantBackgroundColor,
+        kMeansClustering: kMeansClustering,
+        autoRemoveBackground: autoRemoveBackground,
+        removeBackgroundByMask: removeBackgroundByMask,
+        autoRemoveBackgroundByEdges: autoRemoveBackgroundByEdges,
+        CONFIG: CONFIG
+    };
 }
