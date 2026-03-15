@@ -1316,10 +1316,23 @@ function initEraserTab() {
     // Инициализировать обработчики canvas для ластика
     initEraserTool();
 
-    // Показать/скрыть группу параметров умного ластика
+    // Показать/скрыть группы параметров умного ластика
     document.getElementById('eraserMode').addEventListener('change', function(e) {
+        var isSmart = e.target.value === 'smart';
         var smartGroup = document.getElementById('smartEraseGroup');
-        smartGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+        var smartAdvancedGroup = document.getElementById('smartEraseAdvancedGroup');
+        var smartOptionsGroup = document.getElementById('smartOptionsGroup');
+        var smartEdgeSensitivityGroup = document.getElementById('smartEdgeSensitivityGroup');
+
+        if (smartGroup) smartGroup.style.display = isSmart ? 'block' : 'none';
+        if (smartAdvancedGroup) smartAdvancedGroup.style.display = isSmart ? 'block' : 'none';
+        if (smartOptionsGroup) smartOptionsGroup.style.display = isSmart ? 'block' : 'none';
+
+        // Чувствительность показывать только если edge detection включен
+        if (smartEdgeSensitivityGroup) {
+            var edgeDetectionEnabled = document.getElementById('smartEdgeDetection').checked;
+            smartEdgeSensitivityGroup.style.display = (isSmart && edgeDetectionEnabled) ? 'block' : 'none';
+        }
     });
 
     // Инициализация слайдеров ластика

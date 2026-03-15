@@ -13,6 +13,10 @@ var eraserState = {
     mode: 'erase',           // 'erase' | 'restore' | 'smart'
     featherMode: 'cosine',   // 'cosine' | 'quadratic' | 'linear' | 'cubic'
     featherRadius: 2.5,      // Множитель радиуса для расширенной растушевки (1.0-5.0)
+    smartEdgeDetection: true,      // Включить защиту от растекания через края
+    smartEdgeSensitivity: 30,      // Чувствительность краёв (1-100, чем выше - тем строже)
+    smartRespectAlpha: true,       // Учитывать прозрачность
+    smartGradientTolerance: true,  // Плавное затухание вместо жёсткого порога
     lastX: 0,
     lastY: 0,
     originalImageData: null, // Резервная копия для восстановления
@@ -325,6 +329,34 @@ function applyErase(x, y) {
 }
 
 /**
+ * Вычислить силу края (градиент яркости) между двумя пикселями
+ */
+function calculateEdgeStrength(data, idx1, idx2) {
+    var lum1 = 0.299 * data[idx1] + 0.587 * data[idx1 + 1] + 0.114 * data[idx1 + 2];
+    var lum2 = 0.299 * data[idx2] + 0.587 * data[idx2 + 1] + 0.114 * data[idx2 + 2];
+    var lumDiff = Math.abs(lum1 - lum2);
+    var colorDiff = Math.sqrt(
+        Math.pow(data[idx1] - data[idx2], 2) +
+        Math.pow(data[idx1 + 1] - data[idx2 + 1], 2) +
+        Math.pow(data[idx1 + 2] - data[idx2 + 2], 2)
+    );
+    var alphaDiff = Math.abs(data[idx1 + 3] - data[idx2 + 3]);
+    return Math.max(lumDiff, colorDiff / 3, alphaDiff);
+}
+
+/**
+ * Проверить, есть ли край между двумя пикселями
+ */
+function isEdgeBetween(data, width, x1, y1, x2, y2, sensitivity) {
+    var idx1 = (y1 * width + x1) * 4;
+    var idx2 = (y2 * width + x2) * 4;
+    var edgeStrength = calculateEdgeStrength(data, idx1, idx2);
+    // sensitivity 1-100 -> threshold 100-10 (scale 0.9 maps full range to 10..100)
+    var threshold = 100 - sensitivity * 0.9;
+    return edgeStrength > threshold;
+}
+
+/**
  * Умное стирание (удаление похожих цветов)
  * Работает с editCanvas синхронно.
  */
@@ -370,6 +402,11 @@ function applySmartErase(x, y) {
     var targetB = data[startIdx + 2];
 
     var effectiveRadiusCeil = Math.ceil(effectiveRadius);
+
+    // Центральная точка в локальных координатах
+    var centerLocalX = clampedX - x1;
+    var centerLocalY = clampedY - y1;
+
     for (var dy = -effectiveRadiusCeil; dy <= effectiveRadiusCeil; dy++) {
         for (var dx = -effectiveRadiusCeil; dx <= effectiveRadiusCeil; dx++) {
             var px = layerX + dx;
@@ -383,11 +420,42 @@ function applySmartErase(x, y) {
             var localPx = px - x1;
             var localPy = py - y1;
             var i = (localPy * localW + localPx) * 4;
+
+            // Проверка на край между центром и текущим пикселем (если включено)
+            if (eraserState.smartEdgeDetection && dist > 1) {
+                var steps = Math.max(2, Math.floor(dist / 2)); // sample every ~2px along the path
+                var hasEdge = false;
+
+                for (var step = 1; step <= steps; step++) {
+                    var frac = step / steps;
+                    var checkX = Math.round(centerLocalX + (localPx - centerLocalX) * frac);
+                    var checkY = Math.round(centerLocalY + (localPy - centerLocalY) * frac);
+                    var prevX = Math.round(centerLocalX + (localPx - centerLocalX) * (frac - 1 / steps));
+                    var prevY = Math.round(centerLocalY + (localPy - centerLocalY) * (frac - 1 / steps));
+
+                    if (isEdgeBetween(data, localW, prevX, prevY, checkX, checkY, eraserState.smartEdgeSensitivity)) {
+                        hasEdge = true;
+                        break;
+                    }
+                }
+
+                if (hasEdge) continue;
+            }
+
+            // Вычислить цветовую разницу
             var colorDist = Math.sqrt(
                 Math.pow(data[i] - targetR, 2) +
                 Math.pow(data[i + 1] - targetG, 2) +
                 Math.pow(data[i + 2] - targetB, 2)
             );
+
+            // Учитывать альфа-канал (если включено)
+            if (eraserState.smartRespectAlpha) {
+                var targetAlpha = data[startIdx + 3];
+                var alphaDiff = Math.abs(data[i + 3] - targetAlpha);
+                // Alpha differences weighted at 0.5 (half of RGB distance) to avoid over-penalising semi-transparent pixels
+                colorDist += alphaDiff * 0.5;
+            }
 
             if (colorDist <= tolerance) {
                 // Растушёвка по краям кисти с улучшенными кривыми
@@ -402,7 +470,6 @@ function applySmartErase(x, y) {
                         if (normalizedDist < maxDist) {
                             var t = (normalizedDist - hardness) / (maxDist - hardness);
                             // Применить сглаживание для более широкого диапазона
-                            // Показатель < 1 расширяет зону мягкого перехода (0.7 — экспериментально подобранное значение)
                             t = Math.pow(t, 0.7);
                             strength = calculateFeatherStrength(t, eraserState.featherMode);
                         } else {
@@ -413,8 +480,11 @@ function applySmartErase(x, y) {
                     strength = 1;
                 }
                 strength *= opacity;
-                // Дополнительное сглаживание по похожести цвета
-                strength *= (1 - colorDist / tolerance);
+
+                // Плавное затухание силы стирания в зависимости от colorDist
+                if (eraserState.smartGradientTolerance) {
+                    strength *= (1 - colorDist / tolerance);
+                }
 
                 data[i + 3] = Math.round(data[i + 3] * (1 - strength));
             }
@@ -672,6 +742,40 @@ function initEraserTool() {
     if (featherModeSelect) {
         featherModeSelect.addEventListener('change', function(e) {
             eraserState.featherMode = e.target.value;
+        });
+    }
+
+    // Обработчики для умного стирания
+    var smartEdgeCheckbox = document.getElementById('smartEdgeDetection');
+    if (smartEdgeCheckbox) {
+        smartEdgeCheckbox.addEventListener('change', function(e) {
+            eraserState.smartEdgeDetection = e.target.checked;
+            var sensitivityGroup = document.getElementById('smartEdgeSensitivityGroup');
+            if (sensitivityGroup) {
+                sensitivityGroup.style.display = e.target.checked ? 'block' : 'none';
+            }
+        });
+    }
+
+    var smartEdgeSensitivitySlider = document.getElementById('smartEdgeSensitivity');
+    if (smartEdgeSensitivitySlider) {
+        smartEdgeSensitivitySlider.addEventListener('input', function(e) {
+            eraserState.smartEdgeSensitivity = parseInt(e.target.value);
+            document.getElementById('smartEdgeSensitivityVal').textContent = eraserState.smartEdgeSensitivity;
+        });
+    }
+
+    var smartRespectAlphaCheckbox = document.getElementById('smartRespectAlpha');
+    if (smartRespectAlphaCheckbox) {
+        smartRespectAlphaCheckbox.addEventListener('change', function(e) {
+            eraserState.smartRespectAlpha = e.target.checked;
+        });
+    }
+
+    var smartGradientToleranceCheckbox = document.getElementById('smartGradientTolerance');
+    if (smartGradientToleranceCheckbox) {
+        smartGradientToleranceCheckbox.addEventListener('change', function(e) {
+            eraserState.smartGradientTolerance = e.target.checked;
         });
     }
 }
