@@ -462,14 +462,8 @@ function initUIControls() {
     // Ползунки Channel Mixer
     initChannelMixerControls();
 
-    // Инициализация вкладки удаления фона
-    initBackgroundTab();
-
-    // Инициализация инструмента пипетки
-    initEyedropper();
-
-    // Инициализация пипетки для цветовых каналов
-    initChannelEyedropper();
+    // Инициализация единого инструмента удаления по цвету
+    initColorRemoval();
 
     // Инициализация вкладки искажений и пикселизации
     initDistortionTab();
@@ -543,28 +537,20 @@ function updateChannelMixerValueDisplays(layer) {
 }
 
 function updateBackgroundTabUI(layer) {
-    // Restore background removal UI
-    const bgr = layer.backgroundRemoval;
-    document.getElementById('bgRemovalMode').value = bgr ? bgr.mode : 'auto';
-    document.getElementById('colorPickerGroup').style.display =
-        (bgr && bgr.mode === 'color') ? 'block' : 'none';
-    document.getElementById('bgTolerance').value = bgr ? bgr.tolerance : 30;
-    document.getElementById('bgToleranceVal').textContent = bgr ? bgr.tolerance : 30;
-    document.getElementById('bgFeather').value = bgr ? bgr.feather : 10;
-    document.getElementById('bgFeatherVal').textContent = bgr ? bgr.feather : 10;
-    document.getElementById('bgStrength').value = bgr ? bgr.strength : 100;
-    document.getElementById('bgStrengthVal').textContent = bgr ? bgr.strength : 100;
-
-    // Restore channel removal UI
-    const cr = layer.channelRemoval;
-    document.getElementById('channelToRemove').value = cr ? cr.channel : '';
-    document.getElementById('channelMode').value = cr ? cr.mode : 'transparent';
-    document.getElementById('replacementGroup').style.display =
+    // Restore color removal UI
+    const cr = layer.colorRemoval;
+    document.getElementById('colorToRemove').value = cr && cr.targetColor
+        ? rgbToHex(cr.targetColor.r, cr.targetColor.g, cr.targetColor.b)
+        : '#00ff00';
+    document.getElementById('colorRemovalMode').value = cr ? cr.mode : 'transparent';
+    document.getElementById('colorReplacementGroup').style.display =
         (cr && cr.mode === 'replace') ? 'block' : 'none';
-    document.getElementById('channelTolerance').value = cr ? cr.tolerance : 20;
-    document.getElementById('channelToleranceVal').textContent = cr ? cr.tolerance : 20;
-    document.getElementById('channelStrength').value = cr ? cr.strength : 100;
-    document.getElementById('channelStrengthVal').textContent = cr ? cr.strength : 100;
+    document.getElementById('colorRemovalTolerance').value = cr ? cr.tolerance : 30;
+    document.getElementById('colorRemovalToleranceVal').textContent = cr ? cr.tolerance : 30;
+    document.getElementById('colorRemovalFeather').value = cr ? cr.feather : 10;
+    document.getElementById('colorRemovalFeatherVal').textContent = cr ? cr.feather : 10;
+    document.getElementById('colorRemovalStrength').value = cr ? cr.strength : 100;
+    document.getElementById('colorRemovalStrengthVal').textContent = cr ? cr.strength : 100;
 
     // Restore luminance removal UI
     const lr = layer.luminanceRemoval;
@@ -673,72 +659,21 @@ function hexToRgb(hex) {
     } : { r: 0, g: 255, b: 0 };
 }
 
-// Применить удаление фона (неразрушающее, динамическое)
-const applyBackgroundLive = debounce(function() {
+// Применить удаление по цвету (неразрушающее, динамическое)
+const applyColorRemovalLive = debounce(function() {
     const layer = layers[activeLayerIndex];
     if (!layer || !layer.image) return;
 
-    const mode = document.getElementById('bgRemovalMode').value;
-    const tolerance = parseInt(document.getElementById('bgTolerance').value);
-    const feather = parseInt(document.getElementById('bgFeather').value);
-    const strength = parseInt(document.getElementById('bgStrength').value);
-
-    const params = { mode, tolerance, feather, strength };
-    if (mode === 'color') {
-        params.targetColor = hexToRgb(document.getElementById('bgColor').value);
-    }
-
-    layer.backgroundRemoval = params;
-    render();
-}, 150);
-
-// Применить удаление канала (неразрушающее, динамическое)
-const applyChannelRemovalLive = debounce(function() {
-    const layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) return;
-
-    const selectionMode = document.getElementById('channelSelectionMode').value;
-
-    if (!selectionMode) {
-        layer.channelRemoval = null;
-        render();
-        return;
-    }
-
-    const mode = document.getElementById('channelMode').value;
-    const tolerance = parseInt(document.getElementById('channelTolerance').value);
-    const strength = parseInt(document.getElementById('channelStrength').value);
+    const targetColor = hexToRgb(document.getElementById('colorToRemove').value);
+    const mode = document.getElementById('colorRemovalMode').value;
+    const tolerance = parseInt(document.getElementById('colorRemovalTolerance').value);
+    const feather = parseInt(document.getElementById('colorRemovalFeather').value);
+    const strength = parseInt(document.getElementById('colorRemovalStrength').value);
     const replacementColor = mode === 'replace'
-        ? hexToRgb(document.getElementById('replacementColor').value)
+        ? hexToRgb(document.getElementById('colorReplacementPicker').value)
         : null;
 
-    if (selectionMode === 'eyedropper') {
-        const targetColor = hexToRgb(document.getElementById('channelColorPicker').value);
-        layer.channelRemoval = {
-            mode: 'eyedropper',
-            targetColor: targetColor,
-            channelMode: mode,
-            tolerance: tolerance,
-            strength: strength,
-            replacementColor: replacementColor
-        };
-    } else if (selectionMode === 'range') {
-        const channel = document.getElementById('channelToRemove').value;
-        if (!channel) {
-            layer.channelRemoval = null;
-            render();
-            return;
-        }
-        layer.channelRemoval = {
-            mode: 'range',
-            channel: channel,
-            channelMode: mode,
-            tolerance: tolerance,
-            strength: strength,
-            replacementColor: replacementColor
-        };
-    }
-
+    layer.colorRemoval = { targetColor, mode, tolerance, feather, strength, replacementColor };
     render();
 }, 150);
 
@@ -755,48 +690,29 @@ const applyLuminanceLive = debounce(function() {
     }
 
     const threshold = parseInt(document.getElementById('luminanceThreshold').value);
-    const feather = parseInt(document.getElementById('bgFeather').value);
+    const feather = 0; // Luminance section has no dedicated feather slider
     const strength = parseInt(document.getElementById('luminanceStrength').value);
 
     layer.luminanceRemoval = { type, threshold, feather, strength };
     render();
 }, 150);
 
-// Сбросить раздел удаления фона
-function resetBackgroundSection() {
+// Сбросить удаление по цвету
+function resetColorRemoval() {
     const layer = layers[activeLayerIndex];
     if (!layer) return;
-    layer.backgroundRemoval = null;
-    document.getElementById('bgRemovalMode').value = 'auto';
-    document.getElementById('colorPickerGroup').style.display = 'none';
-    document.getElementById('bgTolerance').value = 30;
-    document.getElementById('bgToleranceVal').textContent = 30;
-    document.getElementById('bgFeather').value = 10;
-    document.getElementById('bgFeatherVal').textContent = 10;
-    document.getElementById('bgStrength').value = 100;
-    document.getElementById('bgStrengthVal').textContent = 100;
+    layer.colorRemoval = null;
+    document.getElementById('colorToRemove').value = '#00ff00';
+    document.getElementById('colorRemovalMode').value = 'transparent';
+    document.getElementById('colorReplacementGroup').style.display = 'none';
+    document.getElementById('colorRemovalTolerance').value = 30;
+    document.getElementById('colorRemovalToleranceVal').textContent = 30;
+    document.getElementById('colorRemovalFeather').value = 10;
+    document.getElementById('colorRemovalFeatherVal').textContent = 10;
+    document.getElementById('colorRemovalStrength').value = 100;
+    document.getElementById('colorRemovalStrengthVal').textContent = 100;
     render();
-    showHint('Удаление фона сброшено');
-}
-
-// Сбросить раздел удаления канала
-function resetChannelSection() {
-    const layer = layers[activeLayerIndex];
-    if (!layer) return;
-    layer.channelRemoval = null;
-    document.getElementById('channelSelectionMode').value = '';
-    document.getElementById('channelEyedropperGroup').style.display = 'none';
-    document.getElementById('channelRangeGroup').style.display = 'none';
-    document.getElementById('channelToRemove').value = '';
-    document.getElementById('channelColorPicker').value = '#00ff00';
-    document.getElementById('channelMode').value = 'transparent';
-    document.getElementById('replacementGroup').style.display = 'none';
-    document.getElementById('channelTolerance').value = 20;
-    document.getElementById('channelToleranceVal').textContent = 20;
-    document.getElementById('channelStrength').value = 100;
-    document.getElementById('channelStrengthVal').textContent = 100;
-    render();
-    showHint('Удаление канала сброшено');
+    showHint('Удаление цвета сброшено');
 }
 
 // Сбросить раздел удаления по яркости
@@ -815,96 +731,152 @@ function resetLuminanceSection() {
 
 // Сбросить все эффекты фона
 function resetAllBackgroundEffects() {
-    resetBackgroundSection();
-    resetChannelSection();
+    resetColorRemoval();
     resetLuminanceSection();
     showHint('Все эффекты фона сброшены');
 }
 
-// Инициализация обработчиков вкладки "Фон"
-function initBackgroundTab() {
-    // Показать/скрыть цвет замены
-    document.getElementById('channelMode').addEventListener('change', function(e) {
-        document.getElementById('replacementGroup').style.display =
+// ===== УНИВЕРСАЛЬНОЕ УДАЛЕНИЕ ПО ЦВЕТУ (ПИПЕТКА) =====
+
+var colorRemovalEyedropperActive = false;
+
+/**
+ * Активировать пипетку для удаления по цвету
+ */
+function activateColorRemovalEyedropper() {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !layer.image) {
+        showHint('⚠️ Загрузите изображение для использования пипетки');
+        return;
+    }
+
+    colorRemovalEyedropperActive = true;
+    canvas.style.cursor = 'crosshair';
+
+    document.getElementById('colorRemovalEyedropperBtn').classList.add('active');
+    document.getElementById('colorRemovalEyedropperBtn').textContent = '✓ Кликните на цвет';
+
+    showHint('💧 Кликните на изображение для выбора цвета');
+}
+
+/**
+ * Деактивировать пипетку
+ */
+function deactivateColorRemovalEyedropper() {
+    colorRemovalEyedropperActive = false;
+    canvas.style.cursor = '';
+
+    var btn = document.getElementById('colorRemovalEyedropperBtn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.textContent = '💧 Пипетка';
+    }
+}
+
+/**
+ * Обработчик клика по canvas для пипетки удаления по цвету
+ */
+function handleColorRemovalEyedropperClick(e) {
+    if (!colorRemovalEyedropperActive) return;
+
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var canvasX = Math.round((e.clientX - rect.left) * scaleX);
+    var canvasY = Math.round((e.clientY - rect.top) * scaleY);
+
+    if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
+        showHint('⚠️ Кликните внутри изображения');
+        return;
+    }
+
+    var useAverage = document.getElementById('colorRemovalAverage') &&
+                     document.getElementById('colorRemovalAverage').checked;
+    var color = useAverage
+        ? getAveragePixelColor(canvasX, canvasY, 5)
+        : getPixelColorFromCanvas(canvasX, canvasY);
+
+    if (!color) {
+        showHint('❌ Не удалось получить цвет пикселя');
+        deactivateColorRemovalEyedropper();
+        return;
+    }
+
+    var hexColor = rgbToHex(color.r, color.g, color.b);
+    document.getElementById('colorToRemove').value = hexColor;
+
+    showHint('✅ Выбран цвет: RGB(' + color.r + ', ' + color.g + ', ' + color.b + ')');
+
+    deactivateColorRemovalEyedropper();
+    applyColorRemovalLive();
+}
+
+/**
+ * Инициализация единого инструмента удаления по цвету
+ */
+function initColorRemoval() {
+    var btn = document.getElementById('colorRemovalEyedropperBtn');
+    if (!btn) return;
+
+    // Клик по кнопке пипетки
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (colorRemovalEyedropperActive) {
+            deactivateColorRemovalEyedropper();
+        } else {
+            activateColorRemovalEyedropper();
+        }
+    });
+
+    // Клик по canvas
+    canvas.addEventListener('click', handleColorRemovalEyedropperClick);
+
+    // ESC для отмены
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && colorRemovalEyedropperActive) {
+            showHint('❌ Выбор цвета отменён');
+            deactivateColorRemovalEyedropper();
+        }
+    });
+
+    // Изменение color picker
+    document.getElementById('colorToRemove').addEventListener('input', applyColorRemovalLive);
+
+    // Изменение режима обработки
+    document.getElementById('colorRemovalMode').addEventListener('change', function(e) {
+        document.getElementById('colorReplacementGroup').style.display =
             e.target.value === 'replace' ? 'block' : 'none';
-        applyChannelRemovalLive();
+        applyColorRemovalLive();
     });
 
-    // Показать/скрыть пипетку цвета фона
-    document.getElementById('bgRemovalMode').addEventListener('change', function(e) {
-        document.getElementById('colorPickerGroup').style.display =
-            e.target.value === 'color' ? 'block' : 'none';
-        applyBackgroundLive();
-    });
-
-    // Цвет для удаления фона
-    document.getElementById('bgColor').addEventListener('input', function() {
-        applyBackgroundLive();
-    });
-
-    // Цвет замены для канала
-    document.getElementById('replacementColor').addEventListener('input', function() {
-        applyChannelRemovalLive();
-    });
-
-    // Переключатель режима выбора цвета для каналов
-    document.getElementById('channelSelectionMode').addEventListener('change', function(e) {
-        const mode = e.target.value;
-        document.getElementById('channelEyedropperGroup').style.display =
-            mode === 'eyedropper' ? 'block' : 'none';
-        document.getElementById('channelRangeGroup').style.display =
-            mode === 'range' ? 'block' : 'none';
-        applyChannelRemovalLive();
-    });
-
-    // Изменение color picker для каналов
-    document.getElementById('channelColorPicker').addEventListener('input', function() {
-        applyChannelRemovalLive();
-    });
-
-    // Смена канала
-    document.getElementById('channelToRemove').addEventListener('change', function() {
-        applyChannelRemovalLive();
-    });
+    // Изменение цвета замены
+    document.getElementById('colorReplacementPicker').addEventListener('input', applyColorRemovalLive);
 
     // Тип удаления по яркости
     document.getElementById('luminanceType').addEventListener('change', function() {
         applyLuminanceLive();
     });
 
-    // Инициализация слайдеров — динамическое применение
-    initSlider('bgTolerance', function() {
-        document.getElementById('bgToleranceVal').textContent =
-            document.getElementById('bgTolerance').value;
-        applyBackgroundLive();
+    // Слайдеры удаления по цвету
+    initSlider('colorRemovalTolerance', function() {
+        document.getElementById('colorRemovalToleranceVal').textContent =
+            document.getElementById('colorRemovalTolerance').value;
+        applyColorRemovalLive();
     });
 
-    initSlider('bgFeather', function() {
-        document.getElementById('bgFeatherVal').textContent =
-            document.getElementById('bgFeather').value;
-        // bgFeather is shared between background removal and luminance removal (original behaviour)
-        applyBackgroundLive();
-        applyLuminanceLive();
+    initSlider('colorRemovalFeather', function() {
+        document.getElementById('colorRemovalFeatherVal').textContent =
+            document.getElementById('colorRemovalFeather').value;
+        applyColorRemovalLive();
     });
 
-    initSlider('bgStrength', function() {
-        document.getElementById('bgStrengthVal').textContent =
-            document.getElementById('bgStrength').value;
-        applyBackgroundLive();
+    initSlider('colorRemovalStrength', function() {
+        document.getElementById('colorRemovalStrengthVal').textContent =
+            document.getElementById('colorRemovalStrength').value;
+        applyColorRemovalLive();
     });
 
-    initSlider('channelTolerance', function() {
-        document.getElementById('channelToleranceVal').textContent =
-            document.getElementById('channelTolerance').value;
-        applyChannelRemovalLive();
-    });
-
-    initSlider('channelStrength', function() {
-        document.getElementById('channelStrengthVal').textContent =
-            document.getElementById('channelStrength').value;
-        applyChannelRemovalLive();
-    });
-
+    // Слайдеры удаления по яркости
     initSlider('luminanceThreshold', function() {
         document.getElementById('luminanceThresholdVal').textContent =
             document.getElementById('luminanceThreshold').value;
@@ -918,52 +890,6 @@ function initBackgroundTab() {
     });
 }
 
-// ===== ИНСТРУМЕНТ ПИПЕТКИ ДЛЯ ВЫБОРА ЦВЕТА ФОНА =====
-
-var eyedropperActive = false;
-var originalCanvasCursor = '';
-var eyedropperHoverScheduled = false;
-
-/**
- * Активировать режим пипетки
- */
-function activateEyedropper() {
-    var layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) {
-        showHint('⚠️ Загрузите изображение для использования пипетки');
-        return;
-    }
-
-    eyedropperActive = true;
-    originalCanvasCursor = canvas.style.cursor;
-    canvas.style.cursor = 'crosshair';
-
-    document.getElementById('eyedropperBtn').classList.add('active');
-    document.getElementById('eyedropperBtn').textContent = '✓ Кликните на цвет';
-
-    showHint('💧 Кликните на изображение для выбора цвета');
-}
-
-/**
- * Деактивировать режим пипетки
- */
-function deactivateEyedropper() {
-    eyedropperActive = false;
-    canvas.style.cursor = originalCanvasCursor;
-
-    var btn = document.getElementById('eyedropperBtn');
-    if (btn) {
-        btn.classList.remove('active');
-        btn.textContent = '💧 Пипетка';
-    }
-
-    // Сбросить предпросмотр рамки color picker'а
-    var bgColorInput = document.getElementById('bgColor');
-    if (bgColorInput) {
-        bgColorInput.style.border = '';
-        bgColorInput.style.boxShadow = '';
-    }
-}
 
 /**
  * Получить цвет пикселя из canvas
@@ -1037,242 +963,6 @@ function rgbToHex(r, g, b) {
         r.toString(16).padStart(2, '0') +
         g.toString(16).padStart(2, '0') +
         b.toString(16).padStart(2, '0');
-}
-
-/**
- * Обработчик клика по canvas для пипетки
- * @param {MouseEvent} e
- */
-function handleEyedropperClick(e) {
-    if (!eyedropperActive) return;
-
-    var rect = canvas.getBoundingClientRect();
-    var scaleX = canvas.width / rect.width;
-    var scaleY = canvas.height / rect.height;
-    var canvasX = Math.round((e.clientX - rect.left) * scaleX);
-    var canvasY = Math.round((e.clientY - rect.top) * scaleY);
-
-    if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
-        showHint('⚠️ Кликните внутри изображения');
-        return;
-    }
-
-    var useAverage = document.getElementById('eyedropperAverage') &&
-                     document.getElementById('eyedropperAverage').checked;
-    var color = useAverage
-        ? getAveragePixelColor(canvasX, canvasY, 5)
-        : getPixelColorFromCanvas(canvasX, canvasY);
-
-    if (!color) {
-        showHint('❌ Не удалось получить цвет пикселя');
-        deactivateEyedropper();
-        return;
-    }
-
-    var hexColor = rgbToHex(color.r, color.g, color.b);
-    document.getElementById('bgColor').value = hexColor;
-
-    showHint('✅ Выбран цвет: RGB(' + color.r + ', ' + color.g + ', ' + color.b + ')');
-
-    deactivateEyedropper();
-    applyBackgroundLive();
-}
-
-/**
- * Обработчик движения мыши для предпросмотра цвета при активной пипетке
- * @param {MouseEvent} e
- */
-function handleEyedropperHover(e) {
-    if (!eyedropperActive) return;
-
-    // Throttle via requestAnimationFrame to avoid excessive pixel reads
-    if (eyedropperHoverScheduled) return;
-    eyedropperHoverScheduled = true;
-
-    requestAnimationFrame(function() {
-        eyedropperHoverScheduled = false;
-        if (!eyedropperActive) return;
-
-        var rect = canvas.getBoundingClientRect();
-        var scaleX = canvas.width / rect.width;
-        var scaleY = canvas.height / rect.height;
-        var canvasX = Math.round((e.clientX - rect.left) * scaleX);
-        var canvasY = Math.round((e.clientY - rect.top) * scaleY);
-
-        if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
-            return;
-        }
-
-        var color = getPixelColorFromCanvas(canvasX, canvasY);
-        if (!color) return;
-
-        var hexColor = rgbToHex(color.r, color.g, color.b);
-        var bgColorInput = document.getElementById('bgColor');
-        if (bgColorInput) {
-            bgColorInput.style.border = '3px solid ' + hexColor;
-            bgColorInput.style.boxShadow = '0 0 10px ' + hexColor;
-        }
-    });
-}
-
-/**
- * Использовать встроенный EyeDropper API (Chrome 95+), с fallback на кастомный
- */
-function useNativeEyedropper() {
-    if (!window.EyeDropper) {
-        activateEyedropper();
-        return;
-    }
-
-    var eyeDropper = new window.EyeDropper();
-    eyeDropper.open().then(function(result) {
-        document.getElementById('bgColor').value = result.sRGBHex;
-
-        // Показать RGB значения
-        var hex = result.sRGBHex.replace('#', '');
-        var r = parseInt(hex.substring(0, 2), 16);
-        var g = parseInt(hex.substring(2, 4), 16);
-        var b = parseInt(hex.substring(4, 6), 16);
-        showHint('✅ Выбран цвет: RGB(' + r + ', ' + g + ', ' + b + ')');
-
-        applyBackgroundLive();
-    }).catch(function() {
-        showHint('❌ Выбор цвета отменён');
-    });
-}
-
-/**
- * Инициализация пипетки
- */
-function initEyedropper() {
-    var eyedropperBtn = document.getElementById('eyedropperBtn');
-
-    if (!eyedropperBtn) {
-        console.warn('Кнопка пипетки не найдена');
-        return;
-    }
-
-    eyedropperBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-
-        if (window.EyeDropper) {
-            useNativeEyedropper();
-        } else {
-            if (eyedropperActive) {
-                deactivateEyedropper();
-            } else {
-                activateEyedropper();
-            }
-        }
-    });
-
-    canvas.addEventListener('click', handleEyedropperClick);
-    canvas.addEventListener('mousemove', handleEyedropperHover);
-
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && eyedropperActive) {
-            showHint('❌ Выбор цвета отменён');
-            deactivateEyedropper();
-        }
-    });
-}
-
-// ===== ПИПЕТКА ДЛЯ СЕКЦИИ ЦВЕТОВЫХ КАНАЛОВ =====
-
-var channelEyedropperActive = false;
-
-/**
- * Активировать пипетку для цветовых каналов
- */
-function activateChannelEyedropper() {
-    var layer = layers[activeLayerIndex];
-    if (!layer || !layer.image) {
-        showHint('⚠️ Загрузите изображение для использования пипетки');
-        return;
-    }
-
-    channelEyedropperActive = true;
-    canvas.style.cursor = 'crosshair';
-
-    document.getElementById('channelEyedropperBtn').classList.add('active');
-    document.getElementById('channelEyedropperBtn').textContent = '✓ Кликните на цвет';
-
-    showHint('💧 Кликните на изображение для выбора цвета');
-}
-
-/**
- * Деактивировать пипетку для цветовых каналов
- */
-function deactivateChannelEyedropper() {
-    channelEyedropperActive = false;
-    canvas.style.cursor = '';
-
-    var btn = document.getElementById('channelEyedropperBtn');
-    if (btn) {
-        btn.classList.remove('active');
-        btn.textContent = '💧 Пипетка';
-    }
-}
-
-/**
- * Обработчик клика для пипетки цветовых каналов
- */
-function handleChannelEyedropperClick(e) {
-    if (!channelEyedropperActive) return;
-
-    var rect = canvas.getBoundingClientRect();
-    var scaleX = canvas.width / rect.width;
-    var scaleY = canvas.height / rect.height;
-    var canvasX = Math.round((e.clientX - rect.left) * scaleX);
-    var canvasY = Math.round((e.clientY - rect.top) * scaleY);
-
-    if (canvasX < 0 || canvasX >= canvas.width || canvasY < 0 || canvasY >= canvas.height) {
-        showHint('⚠️ Кликните внутри изображения');
-        return;
-    }
-
-    var color = getAveragePixelColor(canvasX, canvasY, 5);
-
-    if (!color) {
-        showHint('❌ Не удалось получить цвет пикселя');
-        deactivateChannelEyedropper();
-        return;
-    }
-
-    var hexColor = rgbToHex(color.r, color.g, color.b);
-    document.getElementById('channelColorPicker').value = hexColor;
-
-    showHint('✅ Выбран цвет: RGB(' + color.r + ', ' + color.g + ', ' + color.b + ')');
-
-    deactivateChannelEyedropper();
-    applyChannelRemovalLive();
-}
-
-/**
- * Инициализация пипетки для цветовых каналов
- */
-function initChannelEyedropper() {
-    var btn = document.getElementById('channelEyedropperBtn');
-    if (!btn || btn._channelEyedropperInitialized) return;
-    btn._channelEyedropperInitialized = true;
-
-    btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        if (channelEyedropperActive) {
-            deactivateChannelEyedropper();
-        } else {
-            activateChannelEyedropper();
-        }
-    });
-
-    canvas.addEventListener('click', handleChannelEyedropperClick);
-
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && channelEyedropperActive) {
-            showHint('❌ Выбор цвета отменён');
-            deactivateChannelEyedropper();
-        }
-    });
 }
 
 // Инициализация вкладки искажений и пикселизации

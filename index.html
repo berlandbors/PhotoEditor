@@ -501,156 +501,77 @@
                     </div>
                 </div>
 
-                <!-- ТАБ: Удаление фона -->
+                <!-- ТАБ: Удаление по цвету -->
                 <div class="tab-content" id="tab-background">
-                    <div class="upload-title">🎯 Удаление фона слоя <span id="activeLayerNum6">1</span></div>
+                    <div class="upload-title">💧 Удаление по цвету слоя <span id="activeLayerNum6">1</span></div>
 
-                    <!-- Автоудаление -->
+                    <!-- Выбор цвета -->
                     <div class="param-group">
-                        <div class="param-label">
-                            <span>🤖 Режим удаления</span>
-                        </div>
-                        <select id="bgRemovalMode">
-                            <option value="auto">Авто (по цвету краёв)</option>
-                            <option value="color">По выбранному цвету</option>
-                        </select>
-                    </div>
-
-                    <div class="param-group" id="colorPickerGroup" style="display:none;">
                         <div class="param-label">
                             <span>Цвет для удаления</span>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="color" id="bgColor" value="#00ff00" style="flex: 0 0 60px; height: 36px;">
-                            <button id="eyedropperBtn" class="quick-btn" style="flex: 1;" title="Выбрать цвет с изображения">
+                            <input type="color" id="colorToRemove" value="#00ff00" style="flex: 0 0 60px; height: 36px;">
+                            <button id="colorRemovalEyedropperBtn" class="quick-btn" style="flex: 1;" title="Выбрать цвет с изображения">
                                 💧 Пипетка
                             </button>
                         </div>
                         <div style="margin-top: 8px;">
                             <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9em;">
-                                <input type="checkbox" id="eyedropperAverage" checked>
-                                <span>Усреднить цвет (область 5×5 px)</span>
+                                <input type="checkbox" id="colorRemovalAverage" checked>
+                                <span>Усреднить область (5×5 px)</span>
                             </label>
                         </div>
-                        <span class="hint-text">Используйте пипетку или выберите цвет вручную</span>
                     </div>
 
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>🎯 Допуск</span>
-                            <span class="param-value" id="bgToleranceVal">30</span>
-                        </div>
-                        <input type="range" id="bgTolerance" min="0" max="100" value="30">
-                    </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>🌫️ Размытие краёв (Растушёвка)</span>
-                            <span class="param-value" id="bgFeatherVal">10</span>
-                        </div>
-                        <input type="range" id="bgFeather" min="0" max="100" value="10">
-                    </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>💪 Сила эффекта</span>
-                            <span class="param-value" id="bgStrengthVal">100</span>%
-                        </div>
-                        <input type="range" id="bgStrength" min="0" max="100" value="100">
-                    </div>
-
-                    <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
-
-                    <div class="quick-actions" style="margin-top: 8px;">
-                        <button class="quick-btn danger" onclick="resetBackgroundSection()">↺ Сбросить фон</button>
-                    </div>
-
-                    <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
-
-                    <!-- Удаление по каналам -->
-                    <div class="upload-title">🎨 Удаление цветовых каналов</div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>🎯 Режим выбора цвета</span>
-                        </div>
-                        <select id="channelSelectionMode">
-                            <option value="">— Не активно —</option>
-                            <option value="eyedropper">💧 Точный цвет (пипетка)</option>
-                            <option value="range">📊 Диапазон (каналы)</option>
-                        </select>
-                    </div>
-
-                    <!-- Группа для пипетки (скрыта по умолчанию) -->
-                    <div class="param-group" id="channelEyedropperGroup" style="display:none;">
-                        <div class="param-label">
-                            <span>Цвет для удаления</span>
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="color" id="channelColorPicker" value="#00ff00" style="flex: 0 0 60px; height: 36px;">
-                            <button id="channelEyedropperBtn" class="quick-btn" style="flex: 1;" title="Выбрать цвет с изображения">
-                                💧 Пипетка
-                            </button>
-                        </div>
-                        <span class="hint-text">Используйте пипетку для точного выбора цвета</span>
-                    </div>
-
-                    <!-- Группа для предустановленных каналов (скрыта по умолчанию) -->
-                    <div class="param-group" id="channelRangeGroup" style="display:none;">
-                        <div class="param-label">
-                            <span>Выберите диапазон</span>
-                        </div>
-                        <select id="channelToRemove">
-                            <option value="">— Не выбрано —</option>
-                            <option value="red">🔴 Красный</option>
-                            <option value="orange">🟠 Оранжевый</option>
-                            <option value="yellow">🟡 Жёлтый</option>
-                            <option value="green">🟢 Зелёный (Chroma Key)</option>
-                            <option value="cyan">🔵 Голубой</option>
-                            <option value="blue">🔵 Синий</option>
-                            <option value="magenta">🟣 Пурпурный</option>
-                            <option value="pink">🌸 Розовый</option>
-                        </select>
-                    </div>
-
+                    <!-- Режим обработки -->
                     <div class="param-group">
                         <div class="param-label">
                             <span>Режим обработки</span>
                         </div>
-                        <select id="channelMode">
-                            <option value="transparent">Прозрачность</option>
+                        <select id="colorRemovalMode">
+                            <option value="transparent">Прозрачность (удалить)</option>
                             <option value="replace">Заменить цветом</option>
                             <option value="desaturate">Обесцветить</option>
                         </select>
                     </div>
 
-                    <div class="param-group" id="replacementGroup" style="display:none;">
+                    <!-- Цвет замены (показывается только для режима "replace") -->
+                    <div class="param-group" id="colorReplacementGroup" style="display:none;">
                         <div class="param-label">
                             <span>Цвет замены</span>
                         </div>
-                        <input type="color" id="replacementColor" value="#ffffff">
+                        <input type="color" id="colorReplacementPicker" value="#ffffff" style="width: 60px; height: 36px;">
                     </div>
 
                     <div class="param-group">
                         <div class="param-label">
-                            <span>🎯 Допуск канала</span>
-                            <span class="param-value" id="channelToleranceVal">20</span>
+                            <span>🎯 Допуск</span>
+                            <span class="param-value" id="colorRemovalToleranceVal">30</span>
                         </div>
-                        <input type="range" id="channelTolerance" min="0" max="50" value="20">
+                        <input type="range" id="colorRemovalTolerance" min="0" max="100" value="30">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌫️ Размытие краёв</span>
+                            <span class="param-value" id="colorRemovalFeatherVal">10</span>
+                        </div>
+                        <input type="range" id="colorRemovalFeather" min="0" max="100" value="10">
                     </div>
 
                     <div class="param-group">
                         <div class="param-label">
                             <span>💪 Сила эффекта</span>
-                            <span class="param-value" id="channelStrengthVal">100</span>%
+                            <span class="param-value" id="colorRemovalStrengthVal">100</span>%
                         </div>
-                        <input type="range" id="channelStrength" min="0" max="100" value="100">
+                        <input type="range" id="colorRemovalStrength" min="0" max="100" value="100">
                     </div>
 
                     <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
 
                     <div class="quick-actions" style="margin-top: 8px;">
-                        <button class="quick-btn danger" onclick="resetChannelSection()">↺ Сбросить канал</button>
+                        <button class="quick-btn danger" onclick="resetColorRemoval()">↺ Сбросить</button>
                     </div>
 
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
