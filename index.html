@@ -568,6 +568,32 @@
                         <input type="range" id="colorRemovalStrength" min="0" max="100" value="100">
                     </div>
 
+                    <!-- Умное удаление фона -->
+                    <div class="param-group">
+                        <label style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="smartRemovalEnabled">
+                            <span>🧠 Умное удаление (учёт переднего плана)</span>
+                        </label>
+                    </div>
+
+                    <div id="smartRemovalParams" style="display:none;">
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>🛡️ Защита краёв</span>
+                                <span class="param-value" id="edgeProtectionVal">50</span>%
+                            </div>
+                            <input type="range" id="edgeProtection" min="0" max="100" value="50">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label">
+                                <span>🎯 Смещение к переднему плану</span>
+                                <span class="param-value" id="foregroundBiasVal">50</span>%
+                            </div>
+                            <input type="range" id="foregroundBias" min="0" max="100" value="50">
+                        </div>
+                    </div>
+
                     <span class="hint-text">Настройте параметры — эффект применится автоматически</span>
 
                     <div class="quick-actions" style="margin-top: 8px;">

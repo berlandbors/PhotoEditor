@@ -98,12 +98,23 @@ function applyFiltersToImage(layer, imageOverride) {
     // Применяем удаление по цвету (неразрушающее)
     if (layer.colorRemoval) {
         const cr = layer.colorRemoval;
-        imageData = removeBackgroundByColor(imageData, {
-            targetColor: cr.targetColor,
-            tolerance: cr.tolerance,
-            feather: cr.feather,
-            strength: cr.strength / 100
-        });
+        if (cr.smart) {
+            imageData = removeBackgroundSmart(imageData, {
+                targetColor: cr.targetColor,
+                tolerance: cr.tolerance,
+                feather: cr.feather,
+                strength: cr.strength / 100,
+                edgeProtection: cr.edgeProtection,
+                foregroundBias: cr.foregroundBias
+            });
+        } else {
+            imageData = removeBackgroundByColor(imageData, {
+                targetColor: cr.targetColor,
+                tolerance: cr.tolerance,
+                feather: cr.feather,
+                strength: cr.strength / 100
+            });
+        }
         data = imageData.data;
 
         // Для режимов "replace" и "desaturate" дополнительный проход по пикселям
