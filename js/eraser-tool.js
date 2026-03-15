@@ -11,6 +11,8 @@ var eraserState = {
     brushHardness: 50,       // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
     brushOpacity: 100,       // Прозрачность кисти (10-100%)
     mode: 'erase',           // 'erase' | 'restore' | 'smart'
+    featherMode: 'cosine',   // 'cosine' | 'quadratic' | 'linear' | 'cubic'
+    featherRadius: 1.2,      // Множитель радиуса для расширенной растушевки (1.0-2.0)
     lastX: 0,
     lastY: 0,
     originalImageData: null, // Резервная копия для восстановления
@@ -243,8 +245,9 @@ function applyErase(x, y) {
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
 
-    // Читаем только локальную область вокруг кисти
-    var margin = Math.ceil(brushRadius) + 1;
+    // Расширенный радиус для плавной растушевки
+    var effectiveRadius = brushRadius * eraserState.featherRadius;
+    var margin = Math.ceil(effectiveRadius) + 1;
     var x1 = Math.max(0, layerX - margin);
     var y1 = Math.max(0, layerY - margin);
     var x2 = Math.min(ec.width, layerX + margin + 1);
@@ -260,30 +263,34 @@ function applyErase(x, y) {
         ? eraserState.originalImageData.data : null;
 
     var dyInt, dxInt;
-    for (dyInt = Math.ceil(-brushRadius); dyInt <= Math.floor(brushRadius); dyInt++) {
-        for (dxInt = Math.ceil(-brushRadius); dxInt <= Math.floor(brushRadius); dxInt++) {
+    for (dyInt = Math.ceil(-effectiveRadius); dyInt <= Math.floor(effectiveRadius); dyInt++) {
+        for (dxInt = Math.ceil(-effectiveRadius); dxInt <= Math.floor(effectiveRadius); dxInt++) {
             var px = layerX + dxInt;
             var py = layerY + dyInt;
 
             if (px < x1 || px >= x2 || py < y1 || py >= y2) continue;
 
             var distance = Math.sqrt(dxInt * dxInt + dyInt * dyInt);
-            if (distance > brushRadius) continue;
+            if (distance > effectiveRadius) continue;
 
             // Вычислить силу стирания (с учётом мягкости и плавной кривой)
             // hardness=0 → мягкая кисть (плавная растушёвка), hardness=1 → жёсткая
             var strength = 1;
-            var normalizedDistance = distance / brushRadius; // 0..1
+            var normalizedDistance = distance / brushRadius; // 0..featherRadius (typically 1.2)
 
             if (hardness < 1) {
                 if (normalizedDistance <= hardness) {
                     // Жёсткая зона: полная сила
                     strength = 1;
                 } else {
-                    // Мягкая зона: плавное затухание с ease-out кривой
-                    var t = (normalizedDistance - hardness) / (1 - hardness);
-                    // Ease-out cubic для более плавного затухания
-                    strength = 1 - (t * t * t);
+                    // Мягкая зона: плавное затухание с выбранной кривой
+                    var maxDist = eraserState.featherRadius; // Максимальное расстояние для растушевки
+                    if (normalizedDistance < maxDist) {
+                        var t = (normalizedDistance - hardness) / (maxDist - hardness);
+                        strength = calculateFeatherStrength(t, eraserState.featherMode);
+                    } else {
+                        strength = 0;
+                    }
                 }
             } else {
                 // Полностью жёсткая кисть
@@ -337,8 +344,9 @@ function applySmartErase(x, y) {
     var hardness = eraserState.brushHardness / 100;
     var opacity = eraserState.brushOpacity / 100;
 
-    // Читаем только локальную область вокруг кисти
-    var margin = Math.ceil(brushRadius) + 1;
+    // Расширенный радиус для плавной растушевки
+    var effectiveRadius = brushRadius * eraserState.featherRadius;
+    var margin = Math.ceil(effectiveRadius) + 1;
     var x1 = Math.max(0, layerX - margin);
     var y1 = Math.max(0, layerY - margin);
     var x2 = Math.min(ec.width, layerX + margin + 1);
@@ -358,16 +366,16 @@ function applySmartErase(x, y) {
     var targetG = data[startIdx + 1];
     var targetB = data[startIdx + 2];
 
-    var brushRadiusCeil = Math.ceil(brushRadius);
-    for (var dy = -brushRadiusCeil; dy <= brushRadiusCeil; dy++) {
-        for (var dx = -brushRadiusCeil; dx <= brushRadiusCeil; dx++) {
+    var effectiveRadiusCeil = Math.ceil(effectiveRadius);
+    for (var dy = -effectiveRadiusCeil; dy <= effectiveRadiusCeil; dy++) {
+        for (var dx = -effectiveRadiusCeil; dx <= effectiveRadiusCeil; dx++) {
             var px = layerX + dx;
             var py = layerY + dy;
 
             if (px < x1 || px >= x2 || py < y1 || py >= y2) continue;
 
             var dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > brushRadius) continue;
+            if (dist > effectiveRadius) continue;
 
             var localPx = px - x1;
             var localPy = py - y1;
@@ -379,15 +387,21 @@ function applySmartErase(x, y) {
             );
 
             if (colorDist <= tolerance) {
-                // Растушёвка по краям кисти (hardness=0 → мягкая, hardness=1 → жёсткая)
+                // Растушёвка по краям кисти с улучшенными кривыми
                 var strength = 1;
-                var normalizedDist = dist / brushRadius; // 0..1
+                var normalizedDist = dist / brushRadius; // 0..featherRadius (typically 1.2)
+
                 if (hardness < 1) {
                     if (normalizedDist <= hardness) {
                         strength = 1;
                     } else {
-                        var t = (normalizedDist - hardness) / (1 - hardness);
-                        strength = 1 - (t * t * t);
+                        var maxDist = eraserState.featherRadius;
+                        if (normalizedDist < maxDist) {
+                            var t = (normalizedDist - hardness) / (maxDist - hardness);
+                            strength = calculateFeatherStrength(t, eraserState.featherMode);
+                        } else {
+                            strength = 0;
+                        }
                     }
                 } else {
                     strength = 1;
@@ -535,12 +549,25 @@ function drawBrushCursor(x, y) {
     // Вычислить радиус курсора с учётом масштаба слоя
     var layer = layers[activeLayerIndex];
     var scale = (layer && layer.scale) ? layer.scale : 1;
-    var cursorRadius = Math.max(1, (eraserState.brushSize / 2) * scale);
+    var brushRadius = eraserState.brushSize / 2;
+    var cursorRadius = Math.max(1, brushRadius * scale);
+    var featherCursorRadius = Math.max(1, brushRadius * eraserState.featherRadius * scale);
 
     var ctx2d = canvas.getContext('2d');
     ctx2d.save();
     var cursorColor = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
-    // Внешняя окружность (полный размер кисти)
+
+    // Внешняя окружность расширенной зоны растушевки (пунктир)
+    if (eraserState.featherRadius > 1.0) {
+        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.5)' : 'rgba(255,255,255,0.5)';
+        ctx2d.lineWidth = 1;
+        ctx2d.setLineDash([2, 4]);
+        ctx2d.beginPath();
+        ctx2d.arc(x, y, featherCursorRadius, 0, Math.PI * 2);
+        ctx2d.stroke();
+    }
+
+    // Основная окружность (полный размер кисти)
     ctx2d.strokeStyle = cursorColor;
     ctx2d.lineWidth = 1.5;
     ctx2d.setLineDash([4, 4]);
@@ -585,6 +612,30 @@ function getEraserCoords(e) {
  */
 function eraserLerp(a, b, t) {
     return Math.round(a + (b - a) * t);
+}
+
+/**
+ * Вычислить силу растушевки на основе расстояния и выбранного режима
+ * @param {number} t - нормализованное расстояние (0..1)
+ * @param {string} mode - режим кривой ('cosine' | 'quadratic' | 'linear' | 'cubic')
+ * @returns {number} - сила от 0 до 1
+ */
+function calculateFeatherStrength(t, mode) {
+    switch (mode) {
+        case 'cosine':
+            // Самое плавное затухание (как в Photoshop)
+            return (Math.cos(t * Math.PI) + 1) / 2;
+        case 'quadratic':
+            // Среднее затухание
+            return 1 - (t * t);
+        case 'linear':
+            // Линейное затухание
+            return 1 - t;
+        case 'cubic':
+        default:
+            // Исходное кубическое затухание
+            return 1 - (t * t * t);
+    }
 }
 
 /**
