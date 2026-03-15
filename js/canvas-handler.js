@@ -116,14 +116,27 @@ function applyFiltersToImage(layer, imageOverride) {
     }
 
     // Применяем удаление цветового канала (неразрушающее)
-    if (layer.channelRemoval && layer.channelRemoval.channel) {
+    if (layer.channelRemoval) {
         const cr = layer.channelRemoval;
-        imageData = removeColorChannel(imageData, cr.channel, cr.mode, {
-            tolerance: cr.tolerance,
-            replacementColor: cr.replacementColor,
-            strength: cr.strength / 100
-        });
-        data = imageData.data;
+        // Нормализовать старый формат (без поля mode) к новому формату range
+        const effectiveMode = cr.mode || 'range';
+        const effectiveChannelMode = cr.channelMode || cr.mode || 'transparent';
+        if (effectiveMode === 'eyedropper' && cr.targetColor) {
+            imageData = removeColorChannel(imageData, null, effectiveChannelMode, {
+                targetColor: cr.targetColor,
+                tolerance: cr.tolerance,
+                replacementColor: cr.replacementColor,
+                strength: cr.strength / 100
+            });
+            data = imageData.data;
+        } else if (cr.channel) {
+            imageData = removeColorChannel(imageData, cr.channel, effectiveChannelMode, {
+                tolerance: cr.tolerance,
+                replacementColor: cr.replacementColor,
+                strength: cr.strength / 100
+            });
+            data = imageData.data;
+        }
     }
 
     // Применяем удаление по яркости (неразрушающее)

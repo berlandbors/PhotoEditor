@@ -366,6 +366,50 @@ function removeColorChannel(imageData, channel, mode, options) {
     const replacementColor = options.replacementColor || { r: 255, g: 255, b: 255 };
     const strength = Math.max(0, Math.min(1, options.strength !== undefined ? options.strength : 1));
 
+    // Режим точного цвета: сравнение по евклидову расстоянию в RGB
+    if (options.targetColor) {
+        const targetColor = options.targetColor;
+        // tolerance (0-50) масштабируется к RGB-расстоянию (0-220.5):
+        // макс. RGB-расстояние = sqrt(3 * 255^2) ≈ 441; коэффициент 4.41 даёт диапазон [0, ~220] при tolerance [0, 50]
+        const threshold = tolerance * 4.41;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+
+            const distance = Math.sqrt(
+                Math.pow(r - targetColor.r, 2) +
+                Math.pow(g - targetColor.g, 2) +
+                Math.pow(b - targetColor.b, 2)
+            );
+
+            if (distance < threshold) {
+                switch (mode) {
+                    case 'transparent':
+                        data[i + 3] = Math.round(data[i + 3] * (1 - strength));
+                        break;
+
+                    case 'replace':
+                        data[i]     = Math.round(r + (replacementColor.r - r) * strength);
+                        data[i + 1] = Math.round(g + (replacementColor.g - g) * strength);
+                        data[i + 2] = Math.round(b + (replacementColor.b - b) * strength);
+                        break;
+
+                    case 'desaturate': {
+                        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                        data[i]     = Math.round(r + (gray - r) * strength);
+                        data[i + 1] = Math.round(g + (gray - g) * strength);
+                        data[i + 2] = Math.round(b + (gray - b) * strength);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return imageData;
+    }
+
     // HSL диапазоны для каждого канала (hue в градусах)
     const channelRanges = {
         red:     { min: 345, max: 15 },
