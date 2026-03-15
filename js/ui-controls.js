@@ -673,7 +673,25 @@ const applyColorRemovalLive = debounce(function() {
         ? hexToRgb(document.getElementById('colorReplacementPicker').value)
         : null;
 
-    layer.colorRemoval = { targetColor, mode, tolerance, feather, strength, replacementColor };
+    const smartEnabled = document.getElementById('smartRemovalEnabled').checked;
+    const edgeProtection = smartEnabled
+        ? parseInt(document.getElementById('edgeProtection').value)
+        : 0;
+    const foregroundBias = smartEnabled
+        ? parseInt(document.getElementById('foregroundBias').value)
+        : 50;
+
+    layer.colorRemoval = {
+        targetColor,
+        mode,
+        tolerance,
+        feather,
+        strength,
+        replacementColor,
+        smart: smartEnabled,
+        edgeProtection,
+        foregroundBias
+    };
     render();
 }, 150);
 
@@ -711,6 +729,12 @@ function resetColorRemoval() {
     document.getElementById('colorRemovalFeatherVal').textContent = 10;
     document.getElementById('colorRemovalStrength').value = 100;
     document.getElementById('colorRemovalStrengthVal').textContent = 100;
+    document.getElementById('smartRemovalEnabled').checked = false;
+    document.getElementById('smartRemovalParams').style.display = 'none';
+    document.getElementById('edgeProtection').value = 50;
+    document.getElementById('edgeProtectionVal').textContent = 50;
+    document.getElementById('foregroundBias').value = 50;
+    document.getElementById('foregroundBiasVal').textContent = 50;
     render();
     showHint('Удаление цвета сброшено');
 }
@@ -873,6 +897,26 @@ function initColorRemoval() {
     initSlider('colorRemovalStrength', function() {
         document.getElementById('colorRemovalStrengthVal').textContent =
             document.getElementById('colorRemovalStrength').value;
+        applyColorRemovalLive();
+    });
+
+    // Чекбокс умного режима удаления
+    document.getElementById('smartRemovalEnabled').addEventListener('change', function(e) {
+        document.getElementById('smartRemovalParams').style.display =
+            e.target.checked ? 'block' : 'none';
+        applyColorRemovalLive();
+    });
+
+    // Слайдеры умного режима
+    initSlider('edgeProtection', function() {
+        document.getElementById('edgeProtectionVal').textContent =
+            document.getElementById('edgeProtection').value;
+        applyColorRemovalLive();
+    });
+
+    initSlider('foregroundBias', function() {
+        document.getElementById('foregroundBiasVal').textContent =
+            document.getElementById('foregroundBias').value;
         applyColorRemovalLive();
     });
 

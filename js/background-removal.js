@@ -792,6 +792,349 @@ function autoRemoveBackgroundByEdges(imageData, options) {
     return removeBackgroundByMask(imageData, edgeMask, feather);
 }
 
+// ===== УМНОЕ УДАЛЕНИЕ ФОНА (Multi-Pass Intelligent Removal) =====
+
+/**
+ * Умное удаление фона с учётом переднего/заднего плана.
+ * Использует Sobel edge detection, оценку переднего плана, контекстный анализ,
+ * генерацию trimap и alpha matting для точного результата.
+ *
+ * @param {ImageData} imageData
+ * @param {Object} options - {
+ *   targetColor: {r,g,b},
+ *   tolerance: number (0-100),
+ *   feather: number (0-100),
+ *   strength: number (0.0-1.0),
+ *   edgeProtection: number (0-100),
+ *   foregroundBias: number (0-100)
+ * }
+ * @param {Function} [onProgress] - callback(0.0-1.0)
+ * @returns {ImageData}
+ */
+function removeBackgroundSmart(imageData, options, onProgress) {
+    if (!imageData || !imageData.data) {
+        throw new Error('Invalid ImageData object');
+    }
+
+    options = options || {};
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const totalPixels = width * height;
+
+    const targetColor = options.targetColor || { r: 0, g: 255, b: 0 };
+    const tolerance = Math.max(0, Math.min(100, options.tolerance || 30));
+    const feather = Math.max(0, Math.min(100, options.feather || 10));
+    const strength = Math.max(0, Math.min(1, options.strength !== undefined ? options.strength : 1));
+    const edgeProtection = Math.max(0, Math.min(100, options.edgeProtection || 50));
+    const foregroundBias = Math.max(0, Math.min(100, options.foregroundBias || 50));
+
+    if (onProgress) onProgress(0.0);
+
+    // Шаг 1: Определение краёв (Sobel)
+    const edgeMap = detectEdgesSobel(imageData);
+    if (onProgress) onProgress(0.15);
+
+    // Шаг 2: Оценка переднего плана
+    const foregroundMap = estimateForeground(imageData, edgeMap, {
+        centerBias: foregroundBias / 100
+    });
+    if (onProgress) onProgress(0.30);
+
+    // Шаг 3: Контекстный анализ
+    analyzeContext(imageData, targetColor, tolerance, edgeMap);
+    if (onProgress) onProgress(0.50);
+
+    // Шаг 4: Генерация trimap
+    const trimap = generateTrimap(imageData, targetColor, tolerance, foregroundMap, edgeMap, {
+        edgeProtection: edgeProtection / 100
+    });
+    if (onProgress) onProgress(0.70);
+
+    // Шаг 5: Alpha matting
+    const alphaMap = computeAlphaMatting(imageData, trimap, targetColor, tolerance, feather);
+    if (onProgress) onProgress(0.85);
+
+    // Шаг 6: Применить альфа-канал с учётом силы эффекта
+    for (let i = 0; i < totalPixels; i++) {
+        const idx = i * 4;
+        const originalAlpha = data[idx + 3];
+        const computedAlpha = alphaMap[i];
+        data[idx + 3] = Math.round(originalAlpha + (computedAlpha - originalAlpha) * strength);
+    }
+
+    if (onProgress) onProgress(1.0);
+
+    return imageData;
+}
+
+/**
+ * Определение краёв методом Sobel.
+ * @param {ImageData} imageData
+ * @returns {Uint8ClampedArray} карта краёв (0-255)
+ */
+function detectEdgesSobel(imageData) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const edges = new Uint8ClampedArray(width * height);
+
+    const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+    const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            let gx = 0, gy = 0;
+
+            for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                    const idx = ((y + ky) * width + (x + kx)) * 4;
+                    const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                    const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                    gx += gray * sobelX[kernelIdx];
+                    gy += gray * sobelY[kernelIdx];
+                }
+            }
+
+            edges[y * width + x] = Math.min(255, Math.sqrt(gx * gx + gy * gy));
+        }
+    }
+
+    return edges;
+}
+
+/**
+ * Оценить вероятность переднего плана для каждого пикселя.
+ * Центральные пиксели и пиксели с выраженными краями получают высокую вероятность.
+ *
+ * @param {ImageData} imageData
+ * @param {Uint8ClampedArray} edgeMap
+ * @param {Object} options - { centerBias: number (0.0-1.0) }
+ * @returns {Float32Array} вероятность переднего плана (0.0-1.0)
+ */
+function estimateForeground(imageData, edgeMap, options) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const foregroundMap = new Float32Array(width * height);
+    const centerBias = (options && options.centerBias !== undefined) ? options.centerBias : 0.5;
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const distFromCenter = Math.sqrt(dx * dx + dy * dy) / maxDist;
+            const centerScore = 1.0 - distFromCenter;
+            const edgeScore = edgeMap[idx] / 255.0;
+            foregroundMap[idx] = centerScore * centerBias + edgeScore * (1 - centerBias);
+        }
+    }
+
+    return foregroundMap;
+}
+
+/**
+ * Контекстный анализ: для каждого пикселя оценивает долю соседей,
+ * похожих на целевой цвет, с помощью окна 5×5.
+ * Возвращает карту контекста (не используется напрямую после генерации trimap,
+ * но влияет на edgeMap через вызывающий код).
+ *
+ * @param {ImageData} imageData
+ * @param {Object} targetColor - {r, g, b}
+ * @param {number} tolerance
+ * @param {Uint8ClampedArray} edgeMap
+ * @returns {Float32Array} контекстная карта (0.0-1.0)
+ */
+function analyzeContext(imageData, targetColor, tolerance, edgeMap) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const contextMap = new Float32Array(width * height);
+    const kernelSize = 5;
+    const halfKernel = Math.floor(kernelSize / 2);
+    // 4.41 ≈ √(255²×3)/100 — нормализует допуск 0-100 в полный диапазон RGB-расстояния (0-441)
+    const toleranceRgb = tolerance * 4.41;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const pixelIdx = idx * 4;
+
+            const r = data[pixelIdx];
+            const g = data[pixelIdx + 1];
+            const b = data[pixelIdx + 2];
+
+            const distance = Math.sqrt(
+                (r - targetColor.r) * (r - targetColor.r) +
+                (g - targetColor.g) * (g - targetColor.g) +
+                (b - targetColor.b) * (b - targetColor.b)
+            );
+
+            let similarNeighbors = 0;
+            let totalNeighbors = 0;
+
+            for (let ky = -halfKernel; ky <= halfKernel; ky++) {
+                for (let kx = -halfKernel; kx <= halfKernel; kx++) {
+                    if (kx === 0 && ky === 0) continue;
+                    const nx = x + kx;
+                    const ny = y + ky;
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+                    const nIdx = (ny * width + nx) * 4;
+                    const nr = data[nIdx];
+                    const ng = data[nIdx + 1];
+                    const nb = data[nIdx + 2];
+
+                    const nDist = Math.sqrt(
+                        (nr - targetColor.r) * (nr - targetColor.r) +
+                        (ng - targetColor.g) * (ng - targetColor.g) +
+                        (nb - targetColor.b) * (nb - targetColor.b)
+                    );
+
+                    totalNeighbors++;
+                    if (nDist < toleranceRgb) {
+                        similarNeighbors++;
+                    }
+                }
+            }
+
+            const neighborRatio = totalNeighbors > 0 ? similarNeighbors / totalNeighbors : 0;
+            const contextScore = toleranceRgb > 0
+                ? (distance / toleranceRgb) * neighborRatio
+                : 0;
+            contextMap[idx] = Math.min(1.0, contextScore);
+        }
+    }
+
+    return contextMap;
+}
+
+/**
+ * Генерация trimap: foreground=1.0, background=0.0, неизвестно=0.5.
+ *
+ * @param {ImageData} imageData
+ * @param {Object} targetColor - {r, g, b}
+ * @param {number} tolerance
+ * @param {Float32Array} foregroundMap
+ * @param {Uint8ClampedArray} edgeMap
+ * @param {Object} options - { edgeProtection: number (0.0-1.0) }
+ * @returns {Float32Array}
+ */
+function generateTrimap(imageData, targetColor, tolerance, foregroundMap, edgeMap, options) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const trimap = new Float32Array(width * height);
+    const edgeProtection = (options && options.edgeProtection !== undefined)
+        ? options.edgeProtection
+        : 0.5;
+    // 4.41 ≈ √(255²×3)/100 — нормализует допуск 0-100 в полный диапазон RGB-расстояния (0-441)
+    const toleranceRgb = tolerance * 4.41;
+
+    // Чем выше edgeProtection (0-1), тем ниже порог → больше краёв защищается (меньше нужен)
+    const edgeThreshold = 0.5 - edgeProtection * 0.4; // edgeProtection=0 → 0.5; edgeProtection=1 → 0.1
+
+    for (let i = 0; i < width * height; i++) {
+        const pixelIdx = i * 4;
+        const r = data[pixelIdx];
+        const g = data[pixelIdx + 1];
+        const b = data[pixelIdx + 2];
+
+        const distance = Math.sqrt(
+            (r - targetColor.r) * (r - targetColor.r) +
+            (g - targetColor.g) * (g - targetColor.g) +
+            (b - targetColor.b) * (b - targetColor.b)
+        );
+
+        const normalizedDist = toleranceRgb > 0 ? distance / toleranceRgb : (distance > 0 ? 1 : 0);
+        const foregroundProb = foregroundMap[i];
+        const edgeIntensity = edgeMap[i] / 255.0;
+
+        // Сильный край + высокая вероятность переднего плана → защитить
+        if (edgeIntensity > edgeThreshold && foregroundProb > 0.3) {
+            trimap[i] = 1.0;
+        }
+        // Далеко от целевого цвета → передний план
+        else if (normalizedDist > 1.2) {
+            trimap[i] = 1.0;
+        }
+        // Близко к целевому цвету и низкая вероятность переднего плана → фон
+        else if (normalizedDist < 0.8 && foregroundProb < 0.3) {
+            trimap[i] = 0.0;
+        }
+        // Неопределённая зона
+        else {
+            trimap[i] = 0.5;
+        }
+    }
+
+    return trimap;
+}
+
+/**
+ * Вычислить альфа-значения на основе trimap и расстояния до целевого цвета.
+ *
+ * @param {ImageData} imageData
+ * @param {Float32Array} trimap
+ * @param {Object} targetColor - {r, g, b}
+ * @param {number} tolerance
+ * @param {number} feather
+ * @returns {Uint8ClampedArray} альфа-значения (0-255)
+ */
+function computeAlphaMatting(imageData, trimap, targetColor, tolerance, feather) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    const alphaMap = new Uint8ClampedArray(width * height);
+    const toleranceRgb = tolerance * 4.41;
+
+    for (let i = 0; i < width * height; i++) {
+        const pixelIdx = i * 4;
+        const originalAlpha = data[pixelIdx + 3];
+
+        if (trimap[i] >= 0.9) {
+            // Передний план — оставить как есть
+            alphaMap[i] = originalAlpha;
+        } else if (trimap[i] <= 0.1) {
+            // Фон — удалить
+            alphaMap[i] = 0;
+        } else {
+            // Неопределённая зона — плавный переход
+            const r = data[pixelIdx];
+            const g = data[pixelIdx + 1];
+            const b = data[pixelIdx + 2];
+
+            const distance = Math.sqrt(
+                (r - targetColor.r) * (r - targetColor.r) +
+                (g - targetColor.g) * (g - targetColor.g) +
+                (b - targetColor.b) * (b - targetColor.b)
+            );
+
+            const normalizedDist = toleranceRgb > 0
+                ? distance / toleranceRgb
+                : (distance > 0 ? 1 : 0);
+
+            let alpha;
+            if (feather > 0) {
+                const t = Math.min(1.0, normalizedDist);
+                // Smoothstep для мягких переходов
+                const smoothT = t * t * (3 - 2 * t);
+                alpha = Math.round(originalAlpha * smoothT);
+            } else {
+                alpha = normalizedDist < 1.0 ? 0 : originalAlpha;
+            }
+
+            alphaMap[i] = alpha;
+        }
+    }
+
+    return alphaMap;
+}
+
 // Экспорт для тестирования (только в Node.js)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -809,6 +1152,12 @@ if (typeof module !== 'undefined' && module.exports) {
         autoRemoveBackground: autoRemoveBackground,
         removeBackgroundByMask: removeBackgroundByMask,
         autoRemoveBackgroundByEdges: autoRemoveBackgroundByEdges,
+        removeBackgroundSmart: removeBackgroundSmart,
+        detectEdgesSobel: detectEdgesSobel,
+        estimateForeground: estimateForeground,
+        analyzeContext: analyzeContext,
+        generateTrimap: generateTrimap,
+        computeAlphaMatting: computeAlphaMatting,
         CONFIG: CONFIG
     };
 }
