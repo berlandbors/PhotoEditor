@@ -801,9 +801,9 @@
                     <div class="param-group">
                         <div class="param-label">
                             <span>💎 Жёсткость краёв</span>
-                            <span class="param-value" id="eraserHardnessVal">50%</span>
+                            <span class="param-value" id="eraserHardnessVal">0%</span>
                         </div>
-                        <input type="range" id="eraserHardness" min="0" max="100" value="50">
+                        <input type="range" id="eraserHardness" min="0" max="100" value="0">
                     </div>
 
                     <!-- Прозрачность кисти -->
@@ -813,6 +813,28 @@
                             <span class="param-value" id="eraserOpacityVal">100%</span>
                         </div>
                         <input type="range" id="eraserOpacity" min="10" max="100" value="100">
+                    </div>
+
+                    <!-- Растушёвка краёв -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>✨ Радиус растушёвки</span>
+                            <span class="param-value" id="eraserFeatherVal">2.5x</span>
+                        </div>
+                        <input type="range" id="eraserFeather" min="1.0" max="5.0" step="0.1" value="2.5">
+                    </div>
+
+                    <!-- Режим кривой растушёвки -->
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>📊 Режим растушёвки</span>
+                        </div>
+                        <select id="eraserFeatherMode">
+                            <option value="cosine">🌊 Косинус (самое плавное)</option>
+                            <option value="quadratic">📉 Квадратичное (среднее)</option>
+                            <option value="cubic">📈 Кубическое (стандарт)</option>
+                            <option value="linear">📏 Линейное (резкое)</option>
+                        </select>
                     </div>
 
                     <!-- Толерантность умного ластика -->
