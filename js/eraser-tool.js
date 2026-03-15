@@ -10,13 +10,17 @@ var eraserState = {
     brushSize: 20,           // Размер кисти (px)
     brushHardness: 0,        // Жёсткость (0-100, 0=мягкая, 100=жёсткая)
     brushOpacity: 100,       // Прозрачность кисти (10-100%)
-    mode: 'erase',           // 'erase' | 'restore' | 'smart'
+    mode: 'erase',           // 'erase' | 'restore' | 'smart' | 'refine'
     featherMode: 'cosine',   // 'cosine' | 'quadratic' | 'linear' | 'cubic'
     featherRadius: 2.5,      // Множитель радиуса для расширенной растушевки (1.0-5.0)
     smartEdgeDetection: true,      // Включить защиту от растекания через края
     smartEdgeSensitivity: 30,      // Чувствительность краёв (1-100, чем выше - тем строже)
     smartRespectAlpha: true,       // Учитывать прозрачность
     smartGradientTolerance: true,  // Плавное затухание вместо жёсткого порога
+    refineMode: 'blur',            // 'blur' | 'feather' | 'smooth' | 'contrast'
+    refineStrength: 50,            // Сила обработки (1-100%)
+    refineRadius: 5,               // Радиус воздействия (1-20px)
+    refinePreserveColor: true,     // Сохранять цвет, изменять только альфа-канал
     lastX: 0,
     lastY: 0,
     originalImageData: null, // Резервная копия для восстановления
@@ -170,6 +174,8 @@ function startErasing(e) {
     // Если умный ластик — удалить похожие цвета
     if (eraserState.mode === 'smart') {
         applySmartErase(x, y);
+    } else if (eraserState.mode === 'refine') {
+        applyEdgeRefine(x, y);
     } else {
         applyErase(x, y);
     }
@@ -225,7 +231,11 @@ function interpolateErase(x1, y1, x2, y2) {
         var t = i / steps;
         var x = x1 + (x2 - x1) * t;
         var y = y1 + (y2 - y1) * t;
-        applyErase(x, y);
+        if (eraserState.mode === 'refine') {
+            applyEdgeRefine(x, y);
+        } else {
+            applyErase(x, y);
+        }
     }
 }
 
@@ -354,6 +364,164 @@ function isEdgeBetween(data, width, x1, y1, x2, y2, sensitivity) {
     // sensitivity 1-100 -> threshold 100-10 (scale 0.9 maps full range to 10..100)
     var threshold = 100 - sensitivity * 0.9;
     return edgeStrength > threshold;
+}
+
+/**
+ * Применить Gaussian Blur к альфа-каналу в области
+ */
+function applyAlphaBlur(data, width, height, radius) {
+    var output = new Uint8ClampedArray(data.length);
+    for (var i = 0; i < data.length; i += 4) {
+        output[i]     = data[i];
+        output[i + 1] = data[i + 1];
+        output[i + 2] = data[i + 2];
+        output[i + 3] = data[i + 3];
+    }
+
+    var kernelSize = radius * 2 + 1;
+    var sigma = radius / 3; // Стандартное правило: sigma ≈ radius/3 для гауссового ядра
+    var kernel = [];
+    var sum = 0;
+    for (var ki = 0; ki < kernelSize; ki++) {
+        var kx = ki - radius;
+        var val = Math.exp(-(kx * kx) / (2 * sigma * sigma));
+        kernel.push(val);
+        sum += val;
+    }
+    for (var ki = 0; ki < kernel.length; ki++) {
+        kernel[ki] /= sum;
+    }
+
+    var tempAlpha = new Uint8ClampedArray(width * height);
+    for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+            var alphaSum = 0;
+            var weightSum = 0;
+            for (var k = 0; k < kernelSize; k++) {
+                var sx = x + k - radius;
+                if (sx >= 0 && sx < width) {
+                    alphaSum += data[(y * width + sx) * 4 + 3] * kernel[k];
+                    weightSum += kernel[k];
+                }
+            }
+            tempAlpha[y * width + x] = Math.round(alphaSum / weightSum);
+        }
+    }
+
+    for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+            var alphaSum = 0;
+            var weightSum = 0;
+            for (var k = 0; k < kernelSize; k++) {
+                var sy = y + k - radius;
+                if (sy >= 0 && sy < height) {
+                    alphaSum += tempAlpha[sy * width + x] * kernel[k];
+                    weightSum += kernel[k];
+                }
+            }
+            output[(y * width + x) * 4 + 3] = Math.round(alphaSum / weightSum);
+        }
+    }
+
+    return output;
+}
+
+/**
+ * Применить растушёвку к краям прозрачности
+ */
+function applyAlphaFeather(data, width, height, radius, strength) {
+    var output = new Uint8ClampedArray(data);
+    var strengthFactor = strength / 100;
+
+    for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+            var idx = (y * width + x) * 4;
+            var alpha = data[idx + 3];
+
+            if (alpha > 10 && alpha < 245) {
+                var alphaSum = 0;
+                var count = 0;
+
+                for (var dy = -radius; dy <= radius; dy++) {
+                    for (var dx = -radius; dx <= radius; dx++) {
+                        var nx = x + dx;
+                        var ny = y + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                            var dist = Math.sqrt(dx * dx + dy * dy);
+                            if (dist <= radius) {
+                                alphaSum += data[(ny * width + nx) * 4 + 3];
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                var avgAlpha = alphaSum / count;
+                var newAlpha = alpha + (avgAlpha - alpha) * strengthFactor;
+                var edgeFactor = 1 - Math.abs(alpha - 128) / 128;
+                newAlpha = alpha + (newAlpha - alpha) * edgeFactor;
+                output[idx + 3] = Math.round(Math.max(0, Math.min(255, newAlpha)));
+            }
+        }
+    }
+
+    return output;
+}
+
+/**
+ * Применить сглаживание к альфа-каналу
+ */
+function applyAlphaSmooth(data, width, height, strength) {
+    var output = new Uint8ClampedArray(data);
+    var strengthFactor = strength / 100;
+
+    for (var y = 1; y < height - 1; y++) {
+        for (var x = 1; x < width - 1; x++) {
+            var idx = (y * width + x) * 4 + 3;
+            var alpha = data[idx];
+
+            if (alpha > 10 && alpha < 245) {
+                var top    = data[((y - 1) * width + x) * 4 + 3];
+                var bottom = data[((y + 1) * width + x) * 4 + 3];
+                var left   = data[(y * width + (x - 1)) * 4 + 3];
+                var right  = data[(y * width + (x + 1)) * 4 + 3];
+                var smoothed = (top + bottom + left + right + alpha * 4) / 8;
+                var newAlpha = alpha + (smoothed - alpha) * strengthFactor;
+                output[idx] = Math.round(Math.max(0, Math.min(255, newAlpha)));
+            }
+        }
+    }
+
+    return output;
+}
+
+/**
+ * Изменить контрастность краёв
+ */
+function applyAlphaContrast(data, width, height, strength) {
+    var output = new Uint8ClampedArray(data);
+    var contrastFactor = (strength - 50) / 50; // -1..+1
+
+    for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+            var idx = (y * width + x) * 4 + 3;
+            var alpha = data[idx];
+
+            if (alpha > 0 && alpha < 255) {
+                var normalized = (alpha / 255) * 2 - 1;
+                var contrasted;
+                if (contrastFactor > 0) {
+                    contrasted = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1 - contrastFactor * 0.5);
+                } else {
+                    contrasted = Math.sign(normalized) * Math.pow(Math.abs(normalized), 1 + Math.abs(contrastFactor) * 0.5);
+                }
+                var newAlpha = ((contrasted + 1) / 2) * 255;
+                output[idx] = Math.round(Math.max(0, Math.min(255, newAlpha)));
+            }
+        }
+    }
+
+    return output;
 }
 
 /**
@@ -487,6 +655,100 @@ function applySmartErase(x, y) {
                 }
 
                 data[i + 3] = Math.round(data[i + 3] * (1 - strength));
+            }
+        }
+    }
+
+    ectx.putImageData(imageData, x1, y1);
+}
+
+/**
+ * Применить обработку краёв (Refine Mode)
+ * Динамически изменяет края прозрачности без дополнительного стирания
+ */
+function applyEdgeRefine(x, y) {
+    var layer = layers[activeLayerIndex];
+    if (!layer || !eraserState.editCanvas || eraserState.editLayerIndex !== activeLayerIndex) return;
+
+    var layerX = Math.round((x - layer.x) / layer.scale);
+    var layerY = Math.round((y - layer.y) / layer.scale);
+
+    var ec = eraserState.editCanvas;
+    var ectx = eraserState.editCtx;
+
+    var brushRadius = eraserState.brushSize / 2;
+    if (brushRadius <= 0) return;
+
+    var processRadius = Math.max(brushRadius, eraserState.refineRadius * 2);
+    var margin = Math.ceil(processRadius) + eraserState.refineRadius + 5;
+    var x1 = Math.max(0, layerX - margin);
+    var y1 = Math.max(0, layerY - margin);
+    var x2 = Math.min(ec.width, layerX + margin + 1);
+    var y2 = Math.min(ec.height, layerY + margin + 1);
+    var localW = x2 - x1;
+    var localH = y2 - y1;
+    if (localW <= 0 || localH <= 0) return;
+
+    var imageData = ectx.getImageData(x1, y1, localW, localH);
+    var data = imageData.data;
+
+    var mask = new Uint8ClampedArray(localW * localH);
+    var centerLocalX = layerX - x1;
+    var centerLocalY = layerY - y1;
+
+    for (var ly = 0; ly < localH; ly++) {
+        for (var lx = 0; lx < localW; lx++) {
+            var dx = lx - centerLocalX;
+            var dy = ly - centerLocalY;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= brushRadius) {
+                var mstrength = 1;
+                if (dist > brushRadius * 0.5) {
+                    var mt = (dist - brushRadius * 0.5) / (brushRadius * 0.5);
+                    mstrength = 1 - (mt * mt);
+                }
+                mask[ly * localW + lx] = Math.round(mstrength * 255);
+            }
+        }
+    }
+
+    var processedData;
+    switch (eraserState.refineMode) {
+        case 'blur':
+            processedData = applyAlphaBlur(data, localW, localH, eraserState.refineRadius);
+            break;
+        case 'feather':
+            processedData = applyAlphaFeather(data, localW, localH, eraserState.refineRadius, eraserState.refineStrength);
+            break;
+        case 'smooth':
+            processedData = applyAlphaSmooth(data, localW, localH, eraserState.refineStrength);
+            break;
+        case 'contrast':
+            processedData = applyAlphaContrast(data, localW, localH, eraserState.refineStrength);
+            break;
+        default:
+            processedData = data;
+    }
+
+    var strengthFactor = eraserState.refineStrength / 100;
+    for (var ly = 0; ly < localH; ly++) {
+        for (var lx = 0; lx < localW; lx++) {
+            var idx = (ly * localW + lx) * 4;
+            var maskValue = mask[ly * localW + lx] / 255;
+            if (maskValue > 0) {
+                if (eraserState.refinePreserveColor) {
+                    var originalAlpha = data[idx + 3];
+                    var processedAlpha = processedData[idx + 3];
+                    var blendedAlpha = originalAlpha + (processedAlpha - originalAlpha) * maskValue * strengthFactor;
+                    data[idx + 3] = Math.round(Math.max(0, Math.min(255, blendedAlpha)));
+                } else {
+                    for (var c = 0; c < 4; c++) {
+                        var original = data[idx + c];
+                        var processed = processedData[idx + c];
+                        var blended = original + (processed - original) * maskValue * strengthFactor;
+                        data[idx + c] = Math.round(Math.max(0, Math.min(255, blended)));
+                    }
+                }
             }
         }
     }
@@ -631,11 +893,15 @@ function drawBrushCursor(x, y) {
 
     var ctx2d = canvas.getContext('2d');
     ctx2d.save();
-    var cursorColor = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' : 'rgba(255,255,255,0.9)';
+    var cursorColor = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.9)' :
+                      eraserState.mode === 'refine'  ? 'rgba(100,200,255,0.9)' :
+                      'rgba(255,255,255,0.9)';
 
     // Внешняя окружность расширенной зоны растушевки (пунктир)
     if (eraserState.featherRadius > 1.0) {
-        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.5)' : 'rgba(255,255,255,0.5)';
+        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.5)' :
+                            eraserState.mode === 'refine'  ? 'rgba(100,200,255,0.5)' :
+                            'rgba(255,255,255,0.5)';
         ctx2d.lineWidth = 1;
         ctx2d.setLineDash([2, 4]);
         ctx2d.beginPath();
@@ -653,7 +919,9 @@ function drawBrushCursor(x, y) {
     // Внутренняя окружность (зона жёсткости, только при промежуточной жёсткости)
     var hardness = eraserState.brushHardness / 100;
     if (hardness > 0 && hardness < 1) {
-        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.4)' : 'rgba(255,255,255,0.4)';
+        ctx2d.strokeStyle = eraserState.mode === 'restore' ? 'rgba(0,220,100,0.4)' :
+                            eraserState.mode === 'refine'  ? 'rgba(100,200,255,0.4)' :
+                            'rgba(255,255,255,0.4)';
         ctx2d.lineWidth = 1;
         ctx2d.setLineDash([2, 2]);
         ctx2d.beginPath();
@@ -776,6 +1044,37 @@ function initEraserTool() {
     if (smartGradientToleranceCheckbox) {
         smartGradientToleranceCheckbox.addEventListener('change', function(e) {
             eraserState.smartGradientTolerance = e.target.checked;
+        });
+    }
+
+    // Обработчики для режима обработки краёв
+    var refineModeSelect = document.getElementById('refineMode');
+    if (refineModeSelect) {
+        refineModeSelect.addEventListener('change', function(e) {
+            eraserState.refineMode = e.target.value;
+        });
+    }
+
+    var refineStrengthSlider = document.getElementById('refineStrength');
+    if (refineStrengthSlider) {
+        refineStrengthSlider.addEventListener('input', function(e) {
+            eraserState.refineStrength = parseInt(e.target.value);
+            document.getElementById('refineStrengthVal').textContent = eraserState.refineStrength + '%';
+        });
+    }
+
+    var refineRadiusSlider = document.getElementById('refineRadius');
+    if (refineRadiusSlider) {
+        refineRadiusSlider.addEventListener('input', function(e) {
+            eraserState.refineRadius = parseInt(e.target.value);
+            document.getElementById('refineRadiusVal').textContent = eraserState.refineRadius + 'px';
+        });
+    }
+
+    var refinePreserveColorCheckbox = document.getElementById('refinePreserveColor');
+    if (refinePreserveColorCheckbox) {
+        refinePreserveColorCheckbox.addEventListener('change', function(e) {
+            eraserState.refinePreserveColor = e.target.checked;
         });
     }
 }
