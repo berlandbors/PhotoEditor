@@ -768,6 +768,17 @@ input[type="range"]::-moz-range-thumb {
     box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
 }
 
+.quick-btn.warning {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    border-color: transparent;
+    color: #fff;
+}
+
+.quick-btn.warning:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
 /* Channel Mixer */
 .channel-section {
     margin-top: 16px;

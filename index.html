@@ -66,6 +66,8 @@
                                     title="Вверх">⬆️</button>
                             <button class="layer-action-btn" onclick="moveLayerDown(this)"
                                     title="Вниз">⬇️</button>
+                            <button class="layer-action-btn" onclick="mergeDown(this)"
+                                    title="Слить вниз">⬇️🗜️</button>
                             <button class="layer-action-btn danger" onclick="deleteLayer(this)"
                                     title="Удалить">🗑️</button>
                             <input type="file" class="layer-file-input" accept="image/*"
@@ -166,6 +168,8 @@
                         <button class="quick-btn" onclick="resetLayer()">↺ Сброс</button>
                         <button class="quick-btn" onclick="flipH()">↔️ Отразить</button>
                         <button class="quick-btn" onclick="fitCanvas()">📐 Вписать</button>
+                        <button class="quick-btn warning" onclick="flattenLayers()">🗜️ Слить всё</button>
+                        <button class="quick-btn" onclick="mergeVisibleLayers()">👁️🗜️ Слить видимые</button>
                     </div>
 
                     <div class="param-group">

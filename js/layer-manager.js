@@ -533,6 +533,205 @@ function resetAll() {
     }
 }
 
+// ===== СЛИЯНИЕ СЛОЁВ =====
+
+/**
+ * Пересобрать список слоёв в DOM из массива layers[]
+ */
+function rebuildLayersList() {
+    const list = document.getElementById('layersList');
+    list.innerHTML = '';
+    layers.forEach(layer => {
+        list.appendChild(createLayerElement(layer));
+        // Sync visibility/lock state that isn't set by createLayerElement
+        const layerItem = list.querySelector(`[data-layer-id="${layer.id}"]`);
+        if (layerItem) {
+            const visBtn = layerItem.querySelector('[title="Показать/Скрыть"]');
+            if (visBtn) visBtn.textContent = layer.visible ? '👁️' : '🚫';
+            layerItem.classList.toggle('layer-hidden', !layer.visible);
+
+            const lockBtn = layerItem.querySelector('[title="Заблокировать/Разблокировать"]');
+            if (lockBtn) lockBtn.textContent = layer.locked ? '🔒' : '🔓';
+            layerItem.classList.toggle('layer-locked', layer.locked);
+        }
+    });
+}
+
+/**
+ * Отрендерить набор слоёв на временный canvas.
+ * Слои передаются в том же порядке, что и в массиве layers[]
+ * (индекс 0 = верхний визуальный слой, последний = нижний).
+ * @param {object[]} layerSubset - массив объектов слоёв
+ * @returns {HTMLCanvasElement}
+ */
+function renderLayersToTempCanvas(layerSubset) {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    let hasContent = false;
+
+    // Рендерим снизу вверх (от последнего элемента к первому)
+    for (let i = layerSubset.length - 1; i >= 0; i--) {
+        const layer = layerSubset[i];
+        if (!layer.image) continue;
+
+        // createTempCanvas рисует слой с source-over и opacity=1
+        const layerCanvas = createTempCanvas(layer);
+
+        if (layer.blendMode.startsWith('canvas-') && hasContent) {
+            const mode = layer.blendMode.replace('canvas-', '');
+            const resultCanvas = window.BlendingEngine.blendImages(
+                tempCanvas, layerCanvas, mode, layer.opacity
+            );
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(resultCanvas, 0, 0);
+        } else {
+            tempCtx.save();
+            tempCtx.globalAlpha = layer.opacity;
+            tempCtx.globalCompositeOperation = layer.blendMode;
+            tempCtx.drawImage(layerCanvas, 0, 0);
+            tempCtx.restore();
+        }
+
+        hasContent = true;
+    }
+
+    return tempCanvas;
+}
+
+/**
+ * Слить все видимые слои в один
+ */
+function flattenLayers() {
+    const visibleWithImage = layers.filter(l => l.visible && l.image);
+    if (visibleWithImage.length === 0) {
+        showHint('Нет видимых слоёв для слияния');
+        return;
+    }
+    if (!confirm('Слить все слои в один?')) return;
+
+    const tempCanvas = renderLayersToTempCanvas(visibleWithImage);
+    const dataURL = tempCanvas.toDataURL('image/png');
+
+    const img = new Image();
+    img.onload = () => {
+        layers.length = 0;
+        const newLayer = createNewLayer();
+        newLayer.name = 'Слитый слой';
+        newLayer.image = img;
+        newLayer.originalImage = img;
+        layers.push(newLayer);
+        activeLayerIndex = 0;
+
+        rebuildLayersList();
+        updateLayerCount();
+        updateAddButton();
+        updateCanvasOverlay();
+        render();
+        showHint('✅ Все слои слиты');
+    };
+    img.src = dataURL;
+}
+
+/**
+ * Слить активный слой со слоем ниже
+ * @param {HTMLElement} button - кнопка внутри .layer-item
+ */
+function mergeDown(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layerIndex = layers.findIndex(l => l.id === layerId);
+
+    if (layerIndex === -1) return;
+
+    // Нижний слой в массиве — это layerIndex + 1 (визуально ниже)
+    if (layerIndex >= layers.length - 1) {
+        showHint('Нет слоя ниже для слияния');
+        return;
+    }
+
+    const upperLayer = layers[layerIndex];
+    const lowerLayer = layers[layerIndex + 1];
+
+    if (!upperLayer.image && !lowerLayer.image) {
+        showHint('Оба слоя пусты');
+        return;
+    }
+
+    // Передаём в порядке массива: верхний (index 0), нижний (index 1)
+    const tempCanvas = renderLayersToTempCanvas([upperLayer, lowerLayer]);
+    const dataURL = tempCanvas.toDataURL('image/png');
+
+    const img = new Image();
+    img.onload = () => {
+        const mergedLayer = createNewLayer();
+        mergedLayer.name = 'Слитый слой';
+        mergedLayer.image = img;
+        mergedLayer.originalImage = img;
+
+        // Заменяем оба слоя одним слитым
+        layers.splice(layerIndex, 2, mergedLayer);
+        activeLayerIndex = Math.min(layerIndex, layers.length - 1);
+
+        rebuildLayersList();
+        updateLayerCount();
+        updateAddButton();
+        render();
+        showHint('✅ Слой слит вниз');
+    };
+    img.src = dataURL;
+}
+
+/**
+ * Слить все видимые слои, сохранив невидимые нетронутыми
+ */
+function mergeVisibleLayers() {
+    const visibleIndices = layers.reduce((acc, l, idx) => {
+        if (l.visible && l.image) acc.push(idx);
+        return acc;
+    }, []);
+
+    if (visibleIndices.length < 2) {
+        showHint('Нужно минимум 2 видимых слоя с изображением');
+        return;
+    }
+
+    const visibleLayers = visibleIndices.map(i => layers[i]);
+    const tempCanvas = renderLayersToTempCanvas(visibleLayers);
+    const dataURL = tempCanvas.toDataURL('image/png');
+
+    const img = new Image();
+    img.onload = () => {
+        // Позиция для вставки: место нижнего из видимых после удаления остальных
+        const insertAtOriginal = Math.max(...visibleIndices);
+        const removedBefore = visibleIndices.filter(i => i < insertAtOriginal).length;
+        const insertPosition = Math.min(insertAtOriginal - removedBefore, layers.length - visibleIndices.length);
+
+        // Удаляем видимые слои по индексам (с конца, чтобы не сбивать индексы)
+        for (let i = visibleIndices.length - 1; i >= 0; i--) {
+            layers.splice(visibleIndices[i], 1);
+        }
+
+        const mergedLayer = createNewLayer();
+        mergedLayer.name = 'Слитые видимые';
+        mergedLayer.image = img;
+        mergedLayer.originalImage = img;
+
+        layers.splice(insertPosition, 0, mergedLayer);
+        activeLayerIndex = Math.min(insertPosition, layers.length - 1);
+
+        rebuildLayersList();
+        updateLayerCount();
+        updateAddButton();
+        updateCanvasOverlay();
+        render();
+        showHint('✅ Видимые слои слиты');
+    };
+    img.src = dataURL;
+}
+
 // Инициализация — вызывается из app.js после определения глобальных переменных
 function initLayerManager() {
     // Слои добавляются динамически через addNewLayer()
