@@ -2,9 +2,13 @@
  * blending.js — алгоритмы попиксельного смешивания изображений через Canvas API
  *
  * Поддерживаемые режимы:
- *   Базовые:     average, additive, multiply, screen, overlay, difference
- *   Продвинутые: lighten-only, darken-only, luminosity,
- *                gradient-h, gradient-v, gradient-radial, chroma-key
+ *   Базовые:        average, additive, multiply, screen, overlay, difference
+ *   Продвинутые:    lighten-only, darken-only, luminosity,
+ *                   gradient-h, gradient-v, gradient-radial, gradient-conic, chroma-key
+ *   Photoshop:      soft-light, color-burn, linear-burn, vivid-light, pin-light
+ *   HSL-цветовые:   hue, saturation, color
+ *   Математические: subtract, divide, exclusion
+ *   Специальные:    grain-extract, grain-merge
  */
 
 'use strict';
@@ -209,6 +213,241 @@ function blendChromaKey(r1, g1, b1, r2, g2, b2, options) {
         : { r: r1, g: g1, b: b1 };
 }
 
+/* ─────────────── Photoshop-режимы ─────────────── */
+
+/**
+ * Soft Light — мягкое затемнение/осветление (алгоритм Photoshop)
+ */
+function blendSoftLight(r1, g1, b1, r2, g2, b2) {
+    function softCh(base, top) {
+        const b = base / 255;
+        const t = top / 255;
+        let r;
+        if (t < 0.5) {
+            r = 2 * b * t + b * b * (1 - 2 * t);
+        } else {
+            r = 2 * b * (1 - t) + Math.sqrt(b) * (2 * t - 1);
+        }
+        return clamp(r * 255 + 0.5 | 0);
+    }
+    return { r: softCh(r1, r2), g: softCh(g1, g2), b: softCh(b1, b2) };
+}
+
+/**
+ * Color Burn — затемнение основы
+ */
+function blendColorBurn(r1, g1, b1, r2, g2, b2) {
+    function burnCh(base, top) {
+        if (top === 0) return 0;
+        return clamp(255 - ((255 - base) * 255 / top + 0.5 | 0));
+    }
+    return { r: burnCh(r1, r2), g: burnCh(g1, g2), b: burnCh(b1, b2) };
+}
+
+/**
+ * Linear Burn — линейное затемнение
+ */
+function blendLinearBurn(r1, g1, b1, r2, g2, b2) {
+    return {
+        r: clamp(r1 + r2 - 255),
+        g: clamp(g1 + g2 - 255),
+        b: clamp(b1 + b2 - 255),
+    };
+}
+
+/**
+ * Vivid Light — яркий свет (Color Burn + Color Dodge)
+ */
+function blendVividLight(r1, g1, b1, r2, g2, b2) {
+    function vividCh(base, top) {
+        if (top < 128) {
+            // Color Burn with top * 2
+            const t2 = top * 2;
+            if (t2 === 0) return 0;
+            return clamp(255 - ((255 - base) * 255 / t2 + 0.5 | 0));
+        } else {
+            // Color Dodge with (top - 128) * 2
+            const t2 = (top - 128) * 2;
+            if (t2 === 255) return 255;
+            return clamp((base * 255 / (255 - t2)) + 0.5 | 0);
+        }
+    }
+    return { r: vividCh(r1, r2), g: vividCh(g1, g2), b: vividCh(b1, b2) };
+}
+
+/**
+ * Pin Light — точечный свет
+ */
+function blendPinLight(r1, g1, b1, r2, g2, b2) {
+    function pinCh(base, top) {
+        if (top < 128) {
+            return Math.min(base, 2 * top);
+        } else {
+            return Math.max(base, 2 * (top - 128));
+        }
+    }
+    return { r: pinCh(r1, r2), g: pinCh(g1, g2), b: pinCh(b1, b2) };
+}
+
+/* ─────────────── HSL-утилиты для цветовых режимов ─────────────── */
+
+/**
+ * Конвертация RGB [0–255] → HSL [h:0–360, s:0–1, l:0–1]
+ */
+function rgbToHsl(r, g, b) {
+    const rn = r / 255, gn = g / 255, bn = b / 255;
+    const max = Math.max(rn, gn, bn);
+    const min = Math.min(rn, gn, bn);
+    const l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case rn: h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6; break;
+            case gn: h = ((bn - rn) / d + 2) / 6; break;
+            default: h = ((rn - gn) / d + 4) / 6; break;
+        }
+    }
+    return { h: h * 360, s, l };
+}
+
+/**
+ * Конвертация HSL [h:0–360, s:0–1, l:0–1] → RGB [0–255]
+ */
+function hslToRgb(h, s, l) {
+    const hue = h / 360;
+    function hue2rgb(p, q, t) {
+        let tt = t;
+        if (tt < 0) tt += 1;
+        if (tt > 1) tt -= 1;
+        if (tt < 1/6) return p + (q - p) * 6 * tt;
+        if (tt < 1/2) return q;
+        if (tt < 2/3) return p + (q - p) * (2/3 - tt) * 6;
+        return p;
+    }
+    if (s === 0) {
+        const v = clamp(l * 255 + 0.5 | 0);
+        return { r: v, g: v, b: v };
+    }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return {
+        r: clamp(hue2rgb(p, q, hue + 1/3) * 255 + 0.5 | 0),
+        g: clamp(hue2rgb(p, q, hue) * 255 + 0.5 | 0),
+        b: clamp(hue2rgb(p, q, hue - 1/3) * 255 + 0.5 | 0),
+    };
+}
+
+/* ─────────────── HSL-цветовые режимы ─────────────── */
+
+/**
+ * Hue — оттенок верхнего + насыщенность и яркость нижнего
+ */
+function blendHue(r1, g1, b1, r2, g2, b2) {
+    const hsl1 = rgbToHsl(r1, g1, b1);
+    const hsl2 = rgbToHsl(r2, g2, b2);
+    return hslToRgb(hsl2.h, hsl1.s, hsl1.l);
+}
+
+/**
+ * Saturation — насыщенность верхнего + оттенок и яркость нижнего
+ */
+function blendSaturation(r1, g1, b1, r2, g2, b2) {
+    const hsl1 = rgbToHsl(r1, g1, b1);
+    const hsl2 = rgbToHsl(r2, g2, b2);
+    return hslToRgb(hsl1.h, hsl2.s, hsl1.l);
+}
+
+/**
+ * Color — оттенок и насыщенность верхнего + яркость нижнего
+ */
+function blendColor(r1, g1, b1, r2, g2, b2) {
+    const hsl1 = rgbToHsl(r1, g1, b1);
+    const hsl2 = rgbToHsl(r2, g2, b2);
+    return hslToRgb(hsl2.h, hsl2.s, hsl1.l);
+}
+
+/* ─────────────── Математические режимы ─────────────── */
+
+/**
+ * Subtract — вычитание с ограничением
+ */
+function blendSubtract(r1, g1, b1, r2, g2, b2) {
+    return {
+        r: clamp(r1 - r2),
+        g: clamp(g1 - g2),
+        b: clamp(b1 - b2),
+    };
+}
+
+/**
+ * Divide — деление
+ */
+function blendDivide(r1, g1, b1, r2, g2, b2) {
+    function divCh(base, top) {
+        if (top === 0) return 255;
+        return clamp((base * 255 / top) + 0.5 | 0);
+    }
+    return { r: divCh(r1, r2), g: divCh(g1, g2), b: divCh(b1, b2) };
+}
+
+/**
+ * Exclusion — исключение (мягкая версия Difference)
+ */
+function blendExclusion(r1, g1, b1, r2, g2, b2) {
+    return {
+        r: clamp(r1 + r2 - 2 * r1 * r2 / 255 + 0.5 | 0),
+        g: clamp(g1 + g2 - 2 * g1 * g2 / 255 + 0.5 | 0),
+        b: clamp(b1 + b2 - 2 * b1 * b2 / 255 + 0.5 | 0),
+    };
+}
+
+/* ─────────────── Специализированные режимы ─────────────── */
+
+/**
+ * Grain Extract — извлечение зерна/текстуры
+ */
+function blendGrainExtract(r1, g1, b1, r2, g2, b2) {
+    return {
+        r: clamp(r1 - r2 + 128),
+        g: clamp(g1 - g2 + 128),
+        b: clamp(b1 - b2 + 128),
+    };
+}
+
+/**
+ * Grain Merge — слияние зерна (обратная к Grain Extract)
+ */
+function blendGrainMerge(r1, g1, b1, r2, g2, b2) {
+    return {
+        r: clamp(r1 + r2 - 128),
+        g: clamp(g1 + g2 - 128),
+        b: clamp(b1 + b2 - 128),
+    };
+}
+
+/* ─────────────── Угловой градиент ─────────────── */
+
+/**
+ * Conic Gradient — угловой (конический) градиент
+ * @param {number} x, y — координаты пикселя
+ * @param {number} w, h — размеры холста
+ */
+function blendGradientConic(r1, g1, b1, r2, g2, b2, x, y, w, h) {
+    const cx = w / 2;
+    const cy = h / 2;
+    const angle = Math.atan2(y - cy, x - cx);
+    // Нормализуем угол к [0, 1]: atan2 возвращает [-π, π]
+    const t = (angle + Math.PI) / (2 * Math.PI);
+    const s = 1 - t;
+    return {
+        r: clamp(r1 * s + r2 * t),
+        g: clamp(g1 * s + g2 * t),
+        b: clamp(b1 * s + b2 * t),
+    };
+}
+
 /* ─────────────── Главный диспетчер ─────────────── */
 
 /**
@@ -234,7 +473,25 @@ function applyBlendMode(mode, r1, g1, b1, r2, g2, b2, pixelCtx) {
         case 'gradient-h':      return blendGradientH(r1, g1, b1, r2, g2, b2, pixelCtx.x, pixelCtx.w);
         case 'gradient-v':      return blendGradientV(r1, g1, b1, r2, g2, b2, pixelCtx.y, pixelCtx.h);
         case 'gradient-radial': return blendGradientRadial(r1, g1, b1, r2, g2, b2, pixelCtx.x, pixelCtx.y, pixelCtx.w, pixelCtx.h);
+        case 'gradient-conic':  return blendGradientConic(r1, g1, b1, r2, g2, b2, pixelCtx.x, pixelCtx.y, pixelCtx.w, pixelCtx.h);
         case 'chroma-key':      return blendChromaKey(r1, g1, b1, r2, g2, b2, pixelCtx.options);
+        // Photoshop режимы
+        case 'soft-light':      return blendSoftLight(r1, g1, b1, r2, g2, b2);
+        case 'color-burn':      return blendColorBurn(r1, g1, b1, r2, g2, b2);
+        case 'linear-burn':     return blendLinearBurn(r1, g1, b1, r2, g2, b2);
+        case 'vivid-light':     return blendVividLight(r1, g1, b1, r2, g2, b2);
+        case 'pin-light':       return blendPinLight(r1, g1, b1, r2, g2, b2);
+        // HSL-цветовые режимы
+        case 'hue':             return blendHue(r1, g1, b1, r2, g2, b2);
+        case 'saturation':      return blendSaturation(r1, g1, b1, r2, g2, b2);
+        case 'color':           return blendColor(r1, g1, b1, r2, g2, b2);
+        // Математические режимы
+        case 'subtract':        return blendSubtract(r1, g1, b1, r2, g2, b2);
+        case 'divide':          return blendDivide(r1, g1, b1, r2, g2, b2);
+        case 'exclusion':       return blendExclusion(r1, g1, b1, r2, g2, b2);
+        // Специализированные режимы
+        case 'grain-extract':   return blendGrainExtract(r1, g1, b1, r2, g2, b2);
+        case 'grain-merge':     return blendGrainMerge(r1, g1, b1, r2, g2, b2);
         default:                return blendAverage(r1, g1, b1, r2, g2, b2);
     }
 }

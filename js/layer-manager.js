@@ -736,3 +736,269 @@ function mergeVisibleLayers() {
 function initLayerManager() {
     // Слои добавляются динамически через addNewLayer()
 }
+
+/* ─────────────── Копирование/вставка настроек слоя ─────────────── */
+
+/** Буфер для скопированных настроек слоя */
+let _layerSettingsClipboard = null;
+
+/**
+ * Скопировать настройки активного слоя в буфер.
+ * @param {HTMLElement} button — кнопка внутри .layer-item
+ */
+function copyLayerSettings(button) {
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return;
+
+    _layerSettingsClipboard = {
+        blendMode: layer.blendMode,
+        opacity: layer.opacity,
+        brightness: layer.brightness,
+        contrast: layer.contrast,
+        saturation: layer.saturation,
+        temperature: layer.temperature,
+        hue: layer.hue,
+        blur: layer.blur,
+        sharpness: layer.sharpness,
+        vignette: layer.vignette,
+        hdr: layer.hdr,
+        grain: layer.grain,
+        channelMixer: layer.channelMixer ? JSON.parse(JSON.stringify(layer.channelMixer)) : null,
+        levels: layer.levels ? JSON.parse(JSON.stringify(layer.levels)) : null,
+        colorMask: layer.colorMask ? JSON.parse(JSON.stringify(layer.colorMask)) : null,
+        colorRemoval: layer.colorRemoval ? JSON.parse(JSON.stringify(layer.colorRemoval)) : null,
+        luminanceRemoval: layer.luminanceRemoval ? JSON.parse(JSON.stringify(layer.luminanceRemoval)) : null,
+    };
+
+    showHint('⚙️ Настройки скопированы');
+}
+
+/**
+ * Вставить настройки из буфера в активный слой.
+ * @param {HTMLElement} button — кнопка внутри .layer-item
+ */
+function pasteLayerSettings(button) {
+    if (!_layerSettingsClipboard) {
+        showHint('⚠️ Нет скопированных настроек');
+        return;
+    }
+
+    const layerItem = button.closest('.layer-item');
+    const layerId = parseInt(layerItem.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return;
+
+    const clip = _layerSettingsClipboard;
+    layer.blendMode = clip.blendMode;
+    layer.opacity = clip.opacity;
+    layer.brightness = clip.brightness;
+    layer.contrast = clip.contrast;
+    layer.saturation = clip.saturation;
+    layer.temperature = clip.temperature;
+    layer.hue = clip.hue;
+    layer.blur = clip.blur;
+    layer.sharpness = clip.sharpness;
+    layer.vignette = clip.vignette;
+    layer.hdr = clip.hdr;
+    layer.grain = clip.grain;
+    layer.channelMixer = clip.channelMixer ? JSON.parse(JSON.stringify(clip.channelMixer)) : null;
+    layer.levels = clip.levels ? JSON.parse(JSON.stringify(clip.levels)) : null;
+    layer.colorMask = clip.colorMask ? JSON.parse(JSON.stringify(clip.colorMask)) : null;
+    layer.colorRemoval = clip.colorRemoval ? JSON.parse(JSON.stringify(clip.colorRemoval)) : null;
+    layer.luminanceRemoval = clip.luminanceRemoval ? JSON.parse(JSON.stringify(clip.luminanceRemoval)) : null;
+
+    updateControls();
+    render();
+    showHint('✅ Настройки применены');
+}
+
+/* ─────────────── Предпросмотр режимов наложения ─────────────── */
+
+/** Полный список режимов наложения для предпросмотра */
+const ALL_BLEND_MODES_FOR_PREVIEW = [
+    { key: 'source-over', label: 'Обычный' },
+    { key: 'multiply', label: 'Умножение' },
+    { key: 'screen', label: 'Экран' },
+    { key: 'overlay', label: 'Наложение' },
+    { key: 'darken', label: 'Темнее' },
+    { key: 'lighten', label: 'Светлее' },
+    { key: 'color-dodge', label: 'Dodge' },
+    { key: 'hard-light', label: 'Свет' },
+    { key: 'canvas-soft-light', label: 'Мягкий свет' },
+    { key: 'canvas-color-burn', label: 'Затемнение основы' },
+    { key: 'canvas-linear-burn', label: 'Линейное затемнение' },
+    { key: 'canvas-vivid-light', label: 'Яркий свет' },
+    { key: 'canvas-pin-light', label: 'Точечный свет' },
+    { key: 'canvas-hue', label: '⚡ Оттенок' },
+    { key: 'canvas-saturation', label: '⚡ Насыщенность' },
+    { key: 'canvas-color', label: '⚡ Цветность' },
+    { key: 'canvas-average', label: '⚡ Усреднение' },
+    { key: 'canvas-additive', label: '⚡ Сложение' },
+    { key: 'canvas-difference', label: '⚡ Разность' },
+    { key: 'canvas-subtract', label: '⚡ Вычитание' },
+    { key: 'canvas-divide', label: '⚡ Деление' },
+    { key: 'canvas-exclusion', label: '⚡ Исключение' },
+    { key: 'canvas-lighten-only', label: '⚡ Светлее' },
+    { key: 'canvas-darken-only', label: '⚡ Темнее' },
+    { key: 'canvas-luminosity', label: '⚡ Яркость' },
+    { key: 'canvas-grain-extract', label: '⚡ Извлечение зерна' },
+    { key: 'canvas-grain-merge', label: '⚡ Слияние зерна' },
+    { key: 'canvas-gradient-h', label: '⚡ Градиент →' },
+    { key: 'canvas-gradient-v', label: '⚡ Градиент ↓' },
+    { key: 'canvas-gradient-radial', label: '⚡ Градиент ○' },
+    { key: 'canvas-gradient-conic', label: '⚡ Угловой градиент' },
+    { key: 'canvas-chroma-key', label: '⚡ Хромакей' },
+];
+
+/** Ссылка на обработчик Esc для предпросмотра режимов (для корректного removeEventListener) */
+let _blendPreviewEscHandler = null;
+
+/**
+ * Показать модальное окно предпросмотра всех режимов наложения.
+ * Использует текущее состояние холста (два нижних слоя) для превью.
+ */
+function showBlendModePreview() {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) {
+        showHint('⚠️ Нет активного слоя');
+        return;
+    }
+
+    const modal = document.getElementById('blendPreviewModal');
+    const grid = document.getElementById('blendPreviewGrid');
+    grid.innerHTML = '';
+
+    // Подготавливаем пару слоёв: активный + нижний (или один если только один)
+    const currentLayer = layers[activeLayerIndex];
+    const lowerLayerIndex = activeLayerIndex + 1;
+    const lowerLayer = lowerLayerIndex < layers.length ? layers[lowerLayerIndex] : null;
+
+    // Строим base-canvas (нижний слой или пустой)
+    const PW = 150, PH = 100;
+    const baseCanvas = document.createElement('canvas');
+    baseCanvas.width = PW; baseCanvas.height = PH;
+    const baseCtx = baseCanvas.getContext('2d');
+    if (lowerLayer && lowerLayer.image) {
+        baseCtx.drawImage(lowerLayer.image, 0, 0, PW, PH);
+    } else {
+        // Шахматный фон
+        const sq = 12;
+        for (let y = 0; y < PH; y += sq) {
+            for (let x = 0; x < PW; x += sq) {
+                baseCtx.fillStyle = ((x / sq + y / sq) % 2 === 0) ? '#ccc' : '#fff';
+                baseCtx.fillRect(x, y, sq, sq);
+            }
+        }
+    }
+
+    // Строим top-canvas (активный слой)
+    const topCanvas = document.createElement('canvas');
+    topCanvas.width = PW; topCanvas.height = PH;
+    const topCtx = topCanvas.getContext('2d');
+    if (currentLayer.image) {
+        topCtx.drawImage(currentLayer.image, 0, 0, PW, PH);
+    }
+
+    // Генерируем превью для каждого режима
+    ALL_BLEND_MODES_FOR_PREVIEW.forEach(({ key, label }) => {
+        const item = document.createElement('div');
+        item.className = 'blend-preview-item';
+
+        const previewCanvas = document.createElement('canvas');
+        previewCanvas.width = PW;
+        previewCanvas.height = PH;
+        const pCtx = previewCanvas.getContext('2d');
+
+        // Отрисовываем базу
+        pCtx.drawImage(baseCanvas, 0, 0);
+
+        if (key.startsWith('canvas-')) {
+            const mode = key.replace('canvas-', '');
+            try {
+                const result = window.BlendingEngine.blendImages(baseCanvas, topCanvas, mode, 1);
+                pCtx.clearRect(0, 0, PW, PH);
+                pCtx.drawImage(result, 0, 0);
+            } catch (err) {
+                console.error('Blend preview error for mode ' + mode + ':', err);
+                // fallback: просто показать top
+                pCtx.drawImage(topCanvas, 0, 0);
+            }
+        } else {
+            pCtx.save();
+            pCtx.globalCompositeOperation = key;
+            pCtx.drawImage(topCanvas, 0, 0);
+            pCtx.restore();
+        }
+
+        const name = document.createElement('span');
+        name.className = 'blend-preview-label';
+        name.textContent = label;
+
+        item.appendChild(previewCanvas);
+        item.appendChild(name);
+        item.title = label;
+        item.addEventListener('click', function() {
+            applyBlendModeFromPreview(key);
+        });
+        grid.appendChild(item);
+    });
+
+    modal.classList.remove('hidden');
+
+    // Закрытие по Esc
+    _blendPreviewEscHandler = function(e) {
+        if (e.key === 'Escape') closeBlendModePreview();
+    };
+    document.addEventListener('keydown', _blendPreviewEscHandler);
+}
+
+/**
+ * Применить режим наложения, выбранный в предпросмотре.
+ * @param {string} mode
+ */
+function applyBlendModeFromPreview(mode) {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    layers[activeLayerIndex].blendMode = mode;
+    updateBlendModeButtons();
+    render();
+    closeBlendModePreview();
+    showHint(`Режим: ${blendModeNames[mode] || mode}`);
+}
+
+/**
+ * Закрыть модальное окно предпросмотра.
+ */
+function closeBlendModePreview() {
+    const modal = document.getElementById('blendPreviewModal');
+    modal.classList.add('hidden');
+    if (_blendPreviewEscHandler) {
+        document.removeEventListener('keydown', _blendPreviewEscHandler);
+        _blendPreviewEscHandler = null;
+    }
+}
+
+/* ─────────────── Поиск режимов наложения ─────────────── */
+
+/**
+ * Фильтровать кнопки режимов наложения по названию.
+ * @param {string} query — поисковый запрос
+ */
+function filterBlendModes(query) {
+    const q = query.toLowerCase().trim();
+    const grid = document.getElementById('blendGrid');
+    if (!grid) return;
+
+    grid.querySelectorAll('.blend-group').forEach(group => {
+        let groupHasVisible = false;
+        group.querySelectorAll('.blend-btn').forEach(btn => {
+            const label = btn.textContent.toLowerCase();
+            const title = (btn.getAttribute('title') || '').toLowerCase();
+            const match = !q || label.includes(q) || title.includes(q);
+            btn.style.display = match ? '' : 'none';
+            if (match) groupHasVisible = true;
+        });
+        // Показываем/скрываем всю группу
+        group.style.display = (q && !groupHasVisible) ? 'none' : '';
+    });
+}
