@@ -408,13 +408,6 @@ function initUIControls() {
         render();
     });
 
-    initSlider('vignette', function() {
-        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-        layers[activeLayerIndex].vignette = parseFloat(document.getElementById('vignette').value);
-        updateValues();
-        render();
-    });
-
     initSlider('hdr', function() {
         if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
         layers[activeLayerIndex].hdr = parseFloat(document.getElementById('hdr').value);
@@ -425,6 +418,35 @@ function initUIControls() {
     initSlider('grain', function() {
         if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
         layers[activeLayerIndex].grain = parseFloat(document.getElementById('grain').value);
+        updateValues();
+        render();
+    });
+
+    // Виньетки
+    initSlider('vignetteDarken', function() {
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].vignetteDarken = parseFloat(document.getElementById('vignetteDarken').value);
+        updateValues();
+        render();
+    });
+
+    initSlider('vignetteLighten', function() {
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].vignetteLighten = parseFloat(document.getElementById('vignetteLighten').value);
+        updateValues();
+        render();
+    });
+
+    initSlider('vignetteTransparency', function() {
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].vignetteTransparency = parseFloat(document.getElementById('vignetteTransparency').value);
+        updateValues();
+        render();
+    });
+
+    initSlider('vignetteSharpness', function() {
+        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+        layers[activeLayerIndex].vignetteSharpness = parseFloat(document.getElementById('vignetteSharpness').value);
         updateValues();
         render();
     });
@@ -1301,6 +1323,29 @@ function resetDistortionEffects() {
     layer.image = layer.originalImage;
     render();
     showHint('Эффекты сброшены');
+}
+
+// ==================== ВИНЬЕТКИ ====================
+
+function resetAllVignettes() {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
+    layer.vignetteDarken = 0;
+    layer.vignetteLighten = 0;
+    layer.vignetteTransparency = 0;
+    layer.vignetteSharpness = 50;
+    layer.vignetteShape = 'ellipse';
+    updateControls();
+    render();
+    showHint('Виньетки сброшены');
+}
+
+function setVignetteShape(shape, btn) {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    layers[activeLayerIndex].vignetteShape = shape;
+    document.getElementById('vignetteShapeEllipse').classList.toggle('active', shape === 'ellipse');
+    document.getElementById('vignetteShapeCircle').classList.toggle('active', shape === 'circle');
+    render();
 }
 
 // ==================== ЛАСТИК ====================

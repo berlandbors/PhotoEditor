@@ -52,6 +52,12 @@ function createNewLayer() {
         vignette: 0,
         hdr: 0,
         grain: 0,
+        // Виньетки
+        vignetteDarken: 0,
+        vignetteLighten: 0,
+        vignetteTransparency: 0,
+        vignetteSharpness: 50,
+        vignetteShape: 'ellipse',
         // Маски и каналы
         colorMask: null,
         channelMixer: null,

@@ -261,6 +261,41 @@ function applyFiltersToImage(layer, imageOverride) {
     
     tempCtx.putImageData(imageData, 0, 0);
     
+    // Виньетка-прозрачность (делает края прозрачными)
+    if ((layer.vignetteTransparency || 0) > 0) {
+        const vt = layer.vignetteTransparency / 100;
+        const sharpness = getVignetteSharpness(layer);
+        const shape = layer.vignetteShape || 'ellipse';
+        const w = tempCanvas.width;
+        const h = tempCanvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const rx = shape === 'circle' ? Math.min(cx, cy) : cx;
+        const ry = shape === 'circle' ? Math.min(cx, cy) : cy;
+
+        let alphaData = tempCtx.getImageData(0, 0, w, h);
+        const aPixels = alphaData.data;
+        // innerRadius: fraction of outer radius where opaque center ends and falloff begins
+        const innerRadius = vignetteInnerStop(sharpness);
+
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
+                const nx = (px - cx) / rx;
+                const ny = (py - cy) / ry;
+                const dist = Math.sqrt(nx * nx + ny * ny); // 0 at center, 1 at ellipse edge
+                if (dist >= innerRadius) {
+                    // Avoid division by zero when innerRadius is exactly 1
+                    const range = 1 - innerRadius || 1e-4;
+                    const t = Math.min(1, (dist - innerRadius) / range);
+                    const alphaFactor = 1 - t * vt;
+                    const idx = (py * w + px) * 4;
+                    aPixels[idx + 3] = Math.max(0, Math.round(aPixels[idx + 3] * alphaFactor));
+                }
+            }
+        }
+        tempCtx.putImageData(alphaData, 0, 0);
+    }
+
     return tempCanvas;
 }
 
@@ -532,6 +567,30 @@ function applyCanvasBlendingToState(stateCanvas, layer) {
     ctx.drawImage(resultCanvas, 0, 0);
 }
 
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ВИНЬЕТОК =====
+
+const VIGNETTE_DEFAULT_SHARPNESS = 50;
+
+/**
+ * Возвращает нормализованное (0-1) значение резкости виньетки для слоя.
+ * @param {object} layer
+ * @returns {number} 0..1
+ */
+function getVignetteSharpness(layer) {
+    return (layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS) / 100;
+}
+
+/**
+ * Вычисляет долю радиуса, где начинается переход виньетки.
+ * При sharpness=0 (0.0) переход начинается с 50% радиуса.
+ * При sharpness=1 (1.0) переход начинается с 90% радиуса (более резкий).
+ * @param {number} sharpness - нормализованное значение 0..1
+ * @returns {number} 0.5..0.9
+ */
+function vignetteInnerStop(sharpness) {
+    return 0.5 + sharpness * 0.4;
+}
+
 function drawLayer(layer) {
     ctx.save();
     
@@ -566,20 +625,50 @@ function drawLayer(layer) {
     // Рисуем изображение с фильтрами
     ctx.drawImage(filteredImage, layer.x, layer.y, width, height);
     
-    // Виньетирование
-    if (layer.vignette > 0) {
+    // Виньетирование (обратная совместимость: layer.vignette → vignetteDarken)
+    const darkenVal = (layer.vignetteDarken || 0) || (layer.vignette || 0);
+    const lightenVal = layer.vignetteLighten || 0;
+
+    if (darkenVal > 0 || lightenVal > 0) {
+        const sharpness = getVignetteSharpness(layer);
+        const shape = layer.vignetteShape || 'ellipse';
         const centerX = layer.x + width / 2;
         const centerY = layer.y + height / 2;
-        const radius = Math.sqrt(width * width + height * height) / 2;
-        const vignetteStrength = layer.vignette / 100;
-        
-        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-        gradient.addColorStop(0, 'rgba(0,0,0,0)');
-        gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
-        gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(layer.x, layer.y, width, height);
+        // innerStop: fraction of radius where the clear center ends
+        // scaled by VIGNETTE_GRADIENT_TAPER so the transition feels natural for radial gradients
+        const VIGNETTE_GRADIENT_TAPER = 0.8;
+        const innerStop = vignetteInnerStop(sharpness) * VIGNETTE_GRADIENT_TAPER;
+
+        let rx, ry;
+        if (shape === 'circle') {
+            const r = Math.min(width, height) / 2;
+            rx = r;
+            ry = r;
+        } else {
+            rx = width / 2;
+            ry = height / 2;
+        }
+        const radius = Math.sqrt(rx * rx + ry * ry);
+
+        if (darkenVal > 0) {
+            const vignetteStrength = darkenVal / 100;
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(innerStop, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(layer.x, layer.y, width, height);
+        }
+
+        if (lightenVal > 0) {
+            const vignetteStrength = lightenVal / 100;
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            gradient.addColorStop(0, 'rgba(255,255,255,0)');
+            gradient.addColorStop(innerStop, 'rgba(255,255,255,0)');
+            gradient.addColorStop(1, `rgba(255,255,255,${vignetteStrength})`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(layer.x, layer.y, width, height);
+        }
     }
     
     ctx.restore();
