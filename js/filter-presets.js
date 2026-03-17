@@ -52,26 +52,34 @@ function applyEffect(effect) {
         case 'none':
             layer.blur = 0;
             layer.sharpness = 0;
-            layer.vignetteDarken = 0;
+            if (layer.vignetteDarken && typeof layer.vignetteDarken === 'object') {
+                layer.vignetteDarken.intensity = 0;
+            } else { layer.vignetteDarken = Object.assign({}, VIGNETTE_DEFAULTS.Darken); }
             layer.hdr = 0;
             layer.grain = 0;
             break;
         case 'soft':
             layer.blur = 1;
-            layer.vignetteDarken = 20;
+            if (layer.vignetteDarken && typeof layer.vignetteDarken === 'object') {
+                layer.vignetteDarken.intensity = 20;
+            } else { layer.vignetteDarken = Object.assign({}, VIGNETTE_DEFAULTS.Darken, { intensity: 20 }); }
             layer.brightness = 5;
             break;
         case 'dramatic':
             layer.contrast = 40;
             layer.saturation = 20;
-            layer.vignetteDarken = 50;
+            if (layer.vignetteDarken && typeof layer.vignetteDarken === 'object') {
+                layer.vignetteDarken.intensity = 50;
+            } else { layer.vignetteDarken = Object.assign({}, VIGNETTE_DEFAULTS.Darken, { intensity: 50 }); }
             layer.hdr = 60;
             break;
         case 'dreamy':
             layer.blur = 2;
             layer.brightness = 15;
             layer.saturation = -20;
-            layer.vignetteDarken = 30;
+            if (layer.vignetteDarken && typeof layer.vignetteDarken === 'object') {
+                layer.vignetteDarken.intensity = 30;
+            } else { layer.vignetteDarken = Object.assign({}, VIGNETTE_DEFAULTS.Darken, { intensity: 30 }); }
             break;
         case 'gritty':
             layer.grain = 40;
@@ -80,7 +88,9 @@ function applyEffect(effect) {
             layer.sharpness = 30;
             break;
         case 'cinema':
-            layer.vignetteDarken = 40;
+            if (layer.vignetteDarken && typeof layer.vignetteDarken === 'object') {
+                layer.vignetteDarken.intensity = 40;
+            } else { layer.vignetteDarken = Object.assign({}, VIGNETTE_DEFAULTS.Darken, { intensity: 40 }); }
             layer.contrast = 20;
             layer.saturation = 10;
             layer.hdr = 30;

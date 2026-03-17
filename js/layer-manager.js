@@ -331,6 +331,48 @@ function resetColorMaskUI() {
     document.getElementById('maskHueVal').textContent = 0;
 }
 
+/**
+ * Синхронизирует UI расширенных настроек виньетки с данными слоя.
+ * @param {object} layer
+ * @param {'Darken'|'Lighten'|'Transparency'} type
+ */
+function _syncVignetteUI(layer, type) {
+    const cfg = getVignetteConfig(layer, type);
+    const k = 'vignette' + type;
+
+    const setVal = function(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+    };
+    const setTxt = function(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+
+    setVal(k, cfg.intensity);
+    setVal(k + 'InnerRadius', cfg.innerRadius);
+    setVal(k + 'OuterRadius', cfg.outerRadius);
+    setVal(k + 'CenterX',    cfg.centerX);
+    setVal(k + 'CenterY',    cfg.centerY);
+    setVal(k + 'Sharpness',  cfg.sharpness);
+
+    setTxt(k + 'Val',              cfg.intensity);
+    setTxt(k + 'InnerRadiusVal',   cfg.innerRadius);
+    setTxt(k + 'OuterRadiusVal',   cfg.outerRadius);
+    setTxt(k + 'CenterXVal',       cfg.centerX);
+    setTxt(k + 'CenterYVal',       cfg.centerY);
+    setTxt(k + 'SharpnessVal',     cfg.sharpness);
+
+    const falloffEl = document.getElementById(k + 'Falloff');
+    if (falloffEl) falloffEl.value = cfg.falloffCurve || 'quadratic';
+
+    const shape = cfg.shape || 'ellipse';
+    ['Circle', 'Ellipse', 'Rectangle'].forEach(function(s) {
+        const btn = document.getElementById(k + 'Shape' + s);
+        if (btn) btn.classList.toggle('active', shape === s.toLowerCase());
+    });
+}
+
 function updateControls() {
     if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
     const layer = layers[activeLayerIndex];
@@ -355,14 +397,10 @@ function updateControls() {
     document.getElementById('hdr').value = layer.hdr;
     document.getElementById('grain').value = layer.grain;
 
-    // Виньетки
-    document.getElementById('vignetteDarken').value = layer.vignetteDarken || 0;
-    document.getElementById('vignetteLighten').value = layer.vignetteLighten || 0;
-    document.getElementById('vignetteTransparency').value = layer.vignetteTransparency || 0;
-    document.getElementById('vignetteSharpness').value = layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS;
-    const shape = layer.vignetteShape || 'ellipse';
-    document.getElementById('vignetteShapeEllipse').classList.toggle('active', shape === 'ellipse');
-    document.getElementById('vignetteShapeCircle').classList.toggle('active', shape === 'circle');
+    // Виньетки — читаем из объектов (с поддержкой старого числового формата)
+    _syncVignetteUI(layer, 'Darken');
+    _syncVignetteUI(layer, 'Lighten');
+    _syncVignetteUI(layer, 'Transparency');
 
     updateValues();
     updateBlendModeButtons();
@@ -451,11 +489,13 @@ function updateValues() {
     document.getElementById('hdrVal').textContent = layer.hdr;
     document.getElementById('grainVal').textContent = layer.grain;
 
-    // Виньетки
-    document.getElementById('vignetteDarkenVal').textContent = layer.vignetteDarken || 0;
-    document.getElementById('vignetteLightenVal').textContent = layer.vignetteLighten || 0;
-    document.getElementById('vignetteTransparencyVal').textContent = layer.vignetteTransparency || 0;
-    document.getElementById('vignetteSharpnessVal').textContent = layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS;
+    // Виньетки — значения берём через getVignetteConfig
+    ['Darken', 'Lighten', 'Transparency'].forEach(function(type) {
+        const cfg = getVignetteConfig(layer, type);
+        const k = 'vignette' + type;
+        const el = document.getElementById(k + 'Val');
+        if (el) el.textContent = cfg.intensity;
+    });
 }
 
 function updateCanvasOverlay() {
@@ -778,6 +818,9 @@ function copyLayerSettings(button) {
         vignette: layer.vignette,
         hdr: layer.hdr,
         grain: layer.grain,
+        vignetteDarken: layer.vignetteDarken ? JSON.parse(JSON.stringify(layer.vignetteDarken)) : null,
+        vignetteLighten: layer.vignetteLighten ? JSON.parse(JSON.stringify(layer.vignetteLighten)) : null,
+        vignetteTransparency: layer.vignetteTransparency ? JSON.parse(JSON.stringify(layer.vignetteTransparency)) : null,
         channelMixer: layer.channelMixer ? JSON.parse(JSON.stringify(layer.channelMixer)) : null,
         levels: layer.levels ? JSON.parse(JSON.stringify(layer.levels)) : null,
         colorMask: layer.colorMask ? JSON.parse(JSON.stringify(layer.colorMask)) : null,
@@ -816,6 +859,9 @@ function pasteLayerSettings(button) {
     layer.vignette = clip.vignette;
     layer.hdr = clip.hdr;
     layer.grain = clip.grain;
+    if (clip.vignetteDarken) layer.vignetteDarken = JSON.parse(JSON.stringify(clip.vignetteDarken));
+    if (clip.vignetteLighten) layer.vignetteLighten = JSON.parse(JSON.stringify(clip.vignetteLighten));
+    if (clip.vignetteTransparency) layer.vignetteTransparency = JSON.parse(JSON.stringify(clip.vignetteTransparency));
     layer.channelMixer = clip.channelMixer ? JSON.parse(JSON.stringify(clip.channelMixer)) : null;
     layer.levels = clip.levels ? JSON.parse(JSON.stringify(clip.levels)) : null;
     layer.colorMask = clip.colorMask ? JSON.parse(JSON.stringify(clip.colorMask)) : null;

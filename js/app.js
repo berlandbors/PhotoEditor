@@ -52,12 +52,10 @@ function createNewLayer() {
         vignette: 0,
         hdr: 0,
         grain: 0,
-        // Виньетки
-        vignetteDarken: 0,
-        vignetteLighten: 0,
-        vignetteTransparency: 0,
-        vignetteSharpness: 50,
-        vignetteShape: 'ellipse',
+        // Виньетки (расширенные настройки)
+        vignetteDarken: { intensity: 0, innerRadius: 0, outerRadius: 100, centerX: 50, centerY: 50, sharpness: 50, falloffCurve: 'quadratic', shape: 'ellipse' },
+        vignetteLighten: { intensity: 0, innerRadius: 0, outerRadius: 100, centerX: 50, centerY: 50, sharpness: 50, falloffCurve: 'quadratic', shape: 'ellipse' },
+        vignetteTransparency: { intensity: 0, innerRadius: 30, outerRadius: 100, centerX: 50, centerY: 50, sharpness: 70, falloffCurve: 'cubic', shape: 'ellipse' },
         // Маски и каналы
         colorMask: null,
         channelMixer: null,
