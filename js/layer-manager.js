@@ -352,9 +352,17 @@ function updateControls() {
     // Эффекты
     document.getElementById('blur').value = layer.blur;
     document.getElementById('sharpness').value = layer.sharpness;
-    document.getElementById('vignette').value = layer.vignette;
     document.getElementById('hdr').value = layer.hdr;
     document.getElementById('grain').value = layer.grain;
+
+    // Виньетки
+    document.getElementById('vignetteDarken').value = layer.vignetteDarken || 0;
+    document.getElementById('vignetteLighten').value = layer.vignetteLighten || 0;
+    document.getElementById('vignetteTransparency').value = layer.vignetteTransparency || 0;
+    document.getElementById('vignetteSharpness').value = layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS;
+    const shape = layer.vignetteShape || 'ellipse';
+    document.getElementById('vignetteShapeEllipse').classList.toggle('active', shape === 'ellipse');
+    document.getElementById('vignetteShapeCircle').classList.toggle('active', shape === 'circle');
 
     updateValues();
     updateBlendModeButtons();
@@ -395,7 +403,7 @@ function updateControls() {
 
     // Обновить номер активного слоя в табах
     const layerDisplayNum = activeLayerIndex + 1;
-    ['activeLayerNum', 'activeLayerNum2', 'activeLayerNum3', 'activeLayerNum4', 'activeLayerNum5', 'activeLayerNum6', 'activeLayerNum8', 'bottomLayerNum'].forEach(id => {
+    ['activeLayerNum', 'activeLayerNum2', 'activeLayerNum3', 'activeLayerNum4', 'activeLayerNum5', 'activeLayerNum6', 'activeLayerNum7', 'activeLayerNum8', 'bottomLayerNum'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = layerDisplayNum;
     });
@@ -440,9 +448,14 @@ function updateValues() {
     // Эффекты
     document.getElementById('blurVal').textContent = layer.blur;
     document.getElementById('sharpnessVal').textContent = layer.sharpness;
-    document.getElementById('vignetteVal').textContent = layer.vignette;
     document.getElementById('hdrVal').textContent = layer.hdr;
     document.getElementById('grainVal').textContent = layer.grain;
+
+    // Виньетки
+    document.getElementById('vignetteDarkenVal').textContent = layer.vignetteDarken || 0;
+    document.getElementById('vignetteLightenVal').textContent = layer.vignetteLighten || 0;
+    document.getElementById('vignetteTransparencyVal').textContent = layer.vignetteTransparency || 0;
+    document.getElementById('vignetteSharpnessVal').textContent = layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS;
 }
 
 function updateCanvasOverlay() {

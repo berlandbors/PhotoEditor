@@ -52,26 +52,26 @@ function applyEffect(effect) {
         case 'none':
             layer.blur = 0;
             layer.sharpness = 0;
-            layer.vignette = 0;
+            layer.vignetteDarken = 0;
             layer.hdr = 0;
             layer.grain = 0;
             break;
         case 'soft':
             layer.blur = 1;
-            layer.vignette = 20;
+            layer.vignetteDarken = 20;
             layer.brightness = 5;
             break;
         case 'dramatic':
             layer.contrast = 40;
             layer.saturation = 20;
-            layer.vignette = 50;
+            layer.vignetteDarken = 50;
             layer.hdr = 60;
             break;
         case 'dreamy':
             layer.blur = 2;
             layer.brightness = 15;
             layer.saturation = -20;
-            layer.vignette = 30;
+            layer.vignetteDarken = 30;
             break;
         case 'gritty':
             layer.grain = 40;
@@ -80,7 +80,7 @@ function applyEffect(effect) {
             layer.sharpness = 30;
             break;
         case 'cinema':
-            layer.vignette = 40;
+            layer.vignetteDarken = 40;
             layer.contrast = 20;
             layer.saturation = 10;
             layer.hdr = 30;

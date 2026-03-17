@@ -90,6 +90,7 @@
                     <button class="tab-btn active" onclick="switchTab('basic', this)">⚙️ Базовые</button>
                     <button class="tab-btn" onclick="switchTab('filters', this)">🎨 Фильтры</button>
                     <button class="tab-btn" onclick="switchTab('effects', this)">✨ Эффекты</button>
+                    <button class="tab-btn" onclick="switchTab('vignette', this)">🌑 Виньетки</button>
                     <button class="tab-btn" onclick="switchTab('colormask', this)">🎭 Маски</button>
                     <button class="tab-btn" onclick="switchTab('channels', this)">📺 Каналы</button>
                     <button class="tab-btn" onclick="switchTab('background', this)">🎯 Фон</button>
@@ -317,14 +318,6 @@
 
                     <div class="param-group">
                         <div class="param-label">
-                            <span>🌑 Виньетирование</span>
-                            <span class="param-value" id="vignetteVal">0</span>
-                        </div>
-                        <input type="range" id="vignette" min="0" max="100" value="0" step="1">
-                    </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
                             <span>💎 HDR эффект</span>
                             <span class="param-value" id="hdrVal">0</span>
                         </div>
@@ -351,6 +344,57 @@
                             <button class="preset-btn" onclick="applyEffect('gritty')">Гритти</button>
                             <button class="preset-btn" onclick="applyEffect('cinema')">Кино</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ТАБ: Виньетки -->
+                <div class="tab-content" id="tab-vignette">
+                    <div class="upload-title">🌑 Виньетки слоя <span id="activeLayerNum7">1</span></div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🌑 Затемнение</span>
+                            <span class="param-value" id="vignetteDarkenVal">0</span>
+                        </div>
+                        <input type="range" id="vignetteDarken" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>☀️ Осветление</span>
+                            <span class="param-value" id="vignetteLightenVal">0</span>
+                        </div>
+                        <input type="range" id="vignetteLighten" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>💧 Прозрачность</span>
+                            <span class="param-value" id="vignetteTransparencyVal">0</span>
+                        </div>
+                        <input type="range" id="vignetteTransparency" min="0" max="100" value="0" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>🎯 Резкость перехода</span>
+                            <span class="param-value" id="vignetteSharpnessVal">50</span>
+                        </div>
+                        <input type="range" id="vignetteSharpness" min="0" max="100" value="50" step="1">
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span>⭕ Форма</span>
+                        </div>
+                        <div class="filter-presets">
+                            <button class="preset-btn active" id="vignetteShapeEllipse" onclick="setVignetteShape('ellipse', this)">Эллипс</button>
+                            <button class="preset-btn" id="vignetteShapeCircle" onclick="setVignetteShape('circle', this)">Круг</button>
+                        </div>
+                    </div>
+
+                    <div class="param-group">
+                        <button class="preset-btn" style="width:100%" onclick="resetAllVignettes()">↺ Сбросить все виньетки</button>
                     </div>
                 </div>
 
