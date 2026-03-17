@@ -1360,13 +1360,19 @@ function initEraserTab() {
     // Инициализировать обработчики canvas для ластика
     initEraserTool();
 
-    // Показать/скрыть группы параметров умного ластика
+    // Показать/скрыть группы параметров умного ластика и обработки краёв
     document.getElementById('eraserMode').addEventListener('change', function(e) {
-        var isSmart = e.target.value === 'smart';
+        var mode = e.target.value;
+        var isSmart = mode === 'smart';
+        var isRefine = mode === 'refine';
         var smartGroup = document.getElementById('smartEraseGroup');
         var smartAdvancedGroup = document.getElementById('smartEraseAdvancedGroup');
         var smartOptionsGroup = document.getElementById('smartOptionsGroup');
         var smartEdgeSensitivityGroup = document.getElementById('smartEdgeSensitivityGroup');
+        var refineGroup = document.getElementById('refineGroup');
+        var refineStrengthGroup = document.getElementById('refineStrengthGroup');
+        var refineRadiusGroup = document.getElementById('refineRadiusGroup');
+        var refineOptionsGroup = document.getElementById('refineOptionsGroup');
 
         if (smartGroup) smartGroup.style.display = isSmart ? 'block' : 'none';
         if (smartAdvancedGroup) smartAdvancedGroup.style.display = isSmart ? 'block' : 'none';
@@ -1377,6 +1383,11 @@ function initEraserTab() {
             var edgeDetectionEnabled = document.getElementById('smartEdgeDetection').checked;
             smartEdgeSensitivityGroup.style.display = (isSmart && edgeDetectionEnabled) ? 'block' : 'none';
         }
+
+        if (refineGroup) refineGroup.style.display = isRefine ? 'block' : 'none';
+        if (refineStrengthGroup) refineStrengthGroup.style.display = isRefine ? 'block' : 'none';
+        if (refineRadiusGroup) refineRadiusGroup.style.display = isRefine ? 'block' : 'none';
+        if (refineOptionsGroup) refineOptionsGroup.style.display = isRefine ? 'block' : 'none';
     });
 
     // Инициализация слайдеров ластика

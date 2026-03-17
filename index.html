@@ -758,6 +758,7 @@
                             <option value="erase">⚪ Стирание (прозрачность)</option>
                             <option value="restore">🔵 Восстановление</option>
                             <option value="smart">🧠 Умный ластик (по цвету)</option>
+                            <option value="refine">🎨 Обработка краёв</option>
                         </select>
                     </div>
 
@@ -851,6 +852,47 @@
                                    style="width: 18px; height: 18px; cursor: pointer;">
                             <span>🌈 Плавное затухание</span>
                         </label>
+                    </div>
+
+                    <!-- Параметры обработки краёв -->
+                    <div class="param-group" id="refineGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>🌫️ Тип обработки</span>
+                        </div>
+                        <select id="refineMode">
+                            <option value="blur">🌫️ Размытие (Blur)</option>
+                            <option value="feather">✨ Растушёвка краёв</option>
+                            <option value="smooth">🎭 Сглаживание</option>
+                            <option value="contrast">📊 Контрастность</option>
+                        </select>
+                    </div>
+
+                    <div class="param-group" id="refineStrengthGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>💪 Сила обработки</span>
+                            <span class="param-value" id="refineStrengthVal">50%</span>
+                        </div>
+                        <input type="range" id="refineStrength" min="1" max="100" value="50">
+                    </div>
+
+                    <div class="param-group" id="refineRadiusGroup" style="display:none;">
+                        <div class="param-label">
+                            <span>📏 Радиус действия</span>
+                            <span class="param-value" id="refineRadiusVal">5px</span>
+                        </div>
+                        <input type="range" id="refineRadius" min="1" max="20" value="5">
+                        <small style="opacity: 0.7; font-size: 11px;">Радиус обработки вокруг каждого края</small>
+                    </div>
+
+                    <div class="param-group" id="refineOptionsGroup" style="display:none;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="refinePreserveColor" checked
+                                   style="width: 18px; height: 18px; cursor: pointer;">
+                            <span>🎨 Сохранять цвет (только альфа)</span>
+                        </label>
+                        <small style="opacity: 0.7; font-size: 11px; display: block; margin-top: 4px;">
+                            Обрабатывать только прозрачность, не трогая цвета
+                        </small>
                     </div>
 
                     <hr style="margin: 16px 0; border-color: rgba(255,255,255,0.1);">
