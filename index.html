@@ -68,6 +68,10 @@
                                     title="Вниз">⬇️</button>
                             <button class="layer-action-btn" onclick="mergeDown(this)"
                                     title="Слить вниз">⬇️🗜️</button>
+                            <button class="layer-action-btn" onclick="copyLayerSettings(this)"
+                                    title="Копировать настройки">📋⚙️</button>
+                            <button class="layer-action-btn" onclick="pasteLayerSettings(this)"
+                                    title="Вставить настройки">📄⚙️</button>
                             <button class="layer-action-btn danger" onclick="deleteLayer(this)"
                                     title="Удалить">🗑️</button>
                             <input type="file" class="layer-file-input" accept="image/*"
@@ -141,25 +145,71 @@
                         <div class="param-label">
                             <span>🎨 Режим наложения</span>
                         </div>
+                        <input type="text" id="blendModeSearch" placeholder="🔍 Найти режим..."
+                               oninput="filterBlendModes(this.value)">
                         <div class="blend-grid" id="blendGrid">
-                            <button class="blend-btn" data-blend="source-over">Обычный</button>
-                            <button class="blend-btn" data-blend="multiply">Умножение</button>
-                            <button class="blend-btn" data-blend="screen">Экран</button>
-                            <button class="blend-btn" data-blend="overlay">Наложение</button>
-                            <button class="blend-btn" data-blend="darken">Темнее</button>
-                            <button class="blend-btn" data-blend="lighten">Светлее</button>
-                            <button class="blend-btn" data-blend="color-dodge">Dodge</button>
-                            <button class="blend-btn" data-blend="hard-light">Свет</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-average" title="Попиксельное">⚡ Усреднение</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-additive" title="Попиксельное">⚡ Сложение</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-difference" title="Попиксельное">⚡ Разность</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-lighten-only" title="Попиксельное">⚡ Светлее</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-darken-only" title="Попиксельное">⚡ Темнее</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-luminosity" title="Попиксельное">⚡ Яркость</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-h" title="Попиксельное">⚡ Градиент →</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-v" title="Попиксельное">⚡ Градиент ↓</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-gradient-radial" title="Попиксельное">⚡ Градиент ○</button>
-                            <button class="blend-btn canvas-mode" data-blend="canvas-chroma-key" title="Попиксельное">⚡ Хромакей</button>
+                            <div class="blend-group">
+                                <div class="blend-group-title">⚙️ Базовые</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn" data-blend="source-over" title="Обычный (Shift+N)">Обычный <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="multiply" title="Умножение (Shift+M)">Умножение <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="screen" title="Экран (Shift+S)">Экран <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="overlay" title="Наложение (Shift+O)">Наложение <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="darken" title="Темнее">Темнее <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="lighten" title="Светлее">Светлее <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="color-dodge" title="Dodge">Dodge <span class="speed-badge fast">🚀</span></button>
+                                    <button class="blend-btn" data-blend="hard-light" title="Свет">Свет <span class="speed-badge fast">🚀</span></button>
+                                </div>
+                            </div>
+                            <div class="blend-group">
+                                <div class="blend-group-title">🎭 Photoshop</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-soft-light" title="Мягкий свет — мягкое затемнение/осветление">Мягкий свет <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-color-burn" title="Затемнение основы — усиление теней">Затемнение основы <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-linear-burn" title="Линейное затемнение — агрессивное затемнение">Линейное затемнение <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-vivid-light" title="Яркий свет — экстремальный контраст">Яркий свет <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-pin-light" title="Точечный свет — постеризованные эффекты">Точечный свет <span class="speed-badge medium">⚡</span></button>
+                                </div>
+                            </div>
+                            <div class="blend-group">
+                                <div class="blend-group-title">🎨 Цветовые</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-hue" title="⚡ Оттенок — H верхнего, S и L нижнего">⚡ Оттенок <span class="speed-badge slow">🐢</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-saturation" title="⚡ Насыщенность — S верхнего, H и L нижнего">⚡ Насыщенность <span class="speed-badge slow">🐢</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-color" title="⚡ Цветность — H и S верхнего, L нижнего">⚡ Цветность <span class="speed-badge slow">🐢</span></button>
+                                </div>
+                            </div>
+                            <div class="blend-group">
+                                <div class="blend-group-title">🔢 Математические</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-average" title="⚡ Усреднение (Shift+A)">⚡ Усреднение <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-additive" title="⚡ Сложение">⚡ Сложение <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-difference" title="⚡ Разность (Shift+D)">⚡ Разность <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-subtract" title="⚡ Вычитание — удаление фона">⚡ Вычитание <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-divide" title="⚡ Деление — усиление ярких областей">⚡ Деление <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-exclusion" title="⚡ Исключение — мягкая версия Difference">⚡ Исключение <span class="speed-badge medium">⚡</span></button>
+                                </div>
+                            </div>
+                            <div class="blend-group">
+                                <div class="blend-group-title">🌈 Градиенты</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-gradient-h" title="⚡ Горизонтальный градиент">⚡ Градиент → <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-gradient-v" title="⚡ Вертикальный градиент">⚡ Градиент ↓ <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-gradient-radial" title="⚡ Радиальный градиент">⚡ Градиент ○ <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-gradient-conic" title="⚡ Угловой (конический) градиент">⚡ Угловой градиент <span class="speed-badge medium">⚡</span></button>
+                                </div>
+                            </div>
+                            <div class="blend-group">
+                                <div class="blend-group-title">✨ Специальные</div>
+                                <div class="blend-group-buttons">
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-lighten-only" title="⚡ Светлее (попиксельно)">⚡ Светлее <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-darken-only" title="⚡ Темнее (попиксельно)">⚡ Темнее <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-luminosity" title="⚡ Яркость">⚡ Яркость <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-grain-extract" title="⚡ Извлечение зерна — извлечение текстуры">⚡ Извлечение зерна <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-grain-merge" title="⚡ Слияние зерна — обратная к Grain Extract">⚡ Слияние зерна <span class="speed-badge medium">⚡</span></button>
+                                    <button class="blend-btn canvas-mode" data-blend="canvas-chroma-key" title="⚡ Хромакей — замена зелёного фона">⚡ Хромакей <span class="speed-badge medium">⚡</span></button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -168,6 +218,7 @@
                         <button class="quick-btn" onclick="resetLayer()">↺ Сброс</button>
                         <button class="quick-btn" onclick="flipH()">↔️ Отразить</button>
                         <button class="quick-btn" onclick="fitCanvas()">📐 Вписать</button>
+                        <button class="quick-btn" onclick="showBlendModePreview()">👁️ Предпросмотр режимов</button>
                         <button class="quick-btn warning" onclick="flattenLayers()">🗜️ Слить всё</button>
                         <button class="quick-btn" onclick="mergeVisibleLayers()">👁️🗜️ Слить видимые</button>
                     </div>
@@ -1096,6 +1147,19 @@
 
             <div class="focus-settings-buttons">
                 <button class="focus-settings-close-btn" onclick="closeSettingsModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blend Mode Preview Modal -->
+    <div class="blend-preview-modal hidden" id="blendPreviewModal" role="dialog" aria-modal="true" aria-label="Предпросмотр режимов наложения" onclick="if(event.target===this)closeBlendModePreview()">
+        <div class="blend-preview-content">
+            <div class="blend-preview-header">
+                <span>🔍 Предпросмотр режимов наложения</span>
+                <button class="blend-preview-close" onclick="closeBlendModePreview()" title="Закрыть">✖️</button>
+            </div>
+            <div class="blend-preview-grid" id="blendPreviewGrid">
+                <!-- Превью генерируются динамически -->
             </div>
         </div>
     </div>

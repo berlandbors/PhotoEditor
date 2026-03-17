@@ -92,7 +92,29 @@ const blendModeNames = {
     'canvas-gradient-h': '⚡ Градиент →',
     'canvas-gradient-v': '⚡ Градиент ↓',
     'canvas-gradient-radial': '⚡ Градиент ○',
-    'canvas-chroma-key': '⚡ Хромакей'
+    'canvas-gradient-conic': '⚡ Угловой градиент',
+    'canvas-chroma-key': '⚡ Хромакей',
+
+    // Новые Photoshop-режимы
+    'canvas-soft-light': 'Мягкий свет',
+    'canvas-color-burn': 'Затемнение основы',
+    'canvas-linear-burn': 'Линейное затемнение',
+    'canvas-vivid-light': 'Яркий свет',
+    'canvas-pin-light': 'Точечный свет',
+
+    // HSL-цветовые режимы
+    'canvas-hue': '⚡ Оттенок',
+    'canvas-saturation': '⚡ Насыщенность',
+    'canvas-color': '⚡ Цветность',
+
+    // Математические режимы
+    'canvas-subtract': '⚡ Вычитание',
+    'canvas-divide': '⚡ Деление',
+    'canvas-exclusion': '⚡ Исключение',
+
+    // Специализированные режимы
+    'canvas-grain-extract': '⚡ Извлечение зерна',
+    'canvas-grain-merge': '⚡ Слияние зерна',
 };
 
 let hintTimeout;
@@ -125,6 +147,34 @@ function hideProcessing() {
 initCanvasHandlers();
 initUIControls();
 initLayerManager();
+
+// Горячие клавиши для быстрого переключения режимов наложения (Shift + клавиша)
+document.addEventListener('keydown', function(e) {
+    if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    // Не срабатывать, если фокус в поле ввода
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    const blendHotkeyMap = {
+        'N': 'source-over',
+        'M': 'multiply',
+        'S': 'screen',
+        'O': 'overlay',
+        'A': 'canvas-average',
+        'D': 'canvas-difference',
+    };
+
+    const targetMode = blendHotkeyMap[e.key.toUpperCase()];
+    if (!targetMode) return;
+
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    e.preventDefault();
+
+    layers[activeLayerIndex].blendMode = targetMode;
+    updateBlendModeButtons();
+    render();
+    showHint(`Режим: ${blendModeNames[targetMode] || targetMode}`);
+});
 
 // Запуск приложения
 updateCanvasOverlay();
