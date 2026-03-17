@@ -422,33 +422,74 @@ function initUIControls() {
         render();
     });
 
-    // Виньетки
-    initSlider('vignetteDarken', function() {
-        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-        layers[activeLayerIndex].vignetteDarken = parseFloat(document.getElementById('vignetteDarken').value);
-        updateValues();
-        render();
-    });
+    // Виньетки — инициализация слайдеров для каждого типа
+    ['Darken', 'Lighten', 'Transparency'].forEach(function(type) {
+        var k = 'vignette' + type;
 
-    initSlider('vignetteLighten', function() {
-        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-        layers[activeLayerIndex].vignetteLighten = parseFloat(document.getElementById('vignetteLighten').value);
-        updateValues();
-        render();
-    });
+        // Интенсивность
+        initSlider(k, function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].intensity = parseFloat(document.getElementById(k).value);
+            updateValues();
+            render();
+        });
 
-    initSlider('vignetteTransparency', function() {
-        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-        layers[activeLayerIndex].vignetteTransparency = parseFloat(document.getElementById('vignetteTransparency').value);
-        updateValues();
-        render();
-    });
+        // Внутренний радиус
+        initSlider(k + 'InnerRadius', function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].innerRadius = parseFloat(document.getElementById(k + 'InnerRadius').value);
+            document.getElementById(k + 'InnerRadiusVal').textContent = document.getElementById(k + 'InnerRadius').value;
+            render();
+        });
 
-    initSlider('vignetteSharpness', function() {
-        if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-        layers[activeLayerIndex].vignetteSharpness = parseFloat(document.getElementById('vignetteSharpness').value);
-        updateValues();
-        render();
+        // Внешний радиус
+        initSlider(k + 'OuterRadius', function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].outerRadius = parseFloat(document.getElementById(k + 'OuterRadius').value);
+            document.getElementById(k + 'OuterRadiusVal').textContent = document.getElementById(k + 'OuterRadius').value;
+            render();
+        });
+
+        // Центр X
+        initSlider(k + 'CenterX', function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].centerX = parseFloat(document.getElementById(k + 'CenterX').value);
+            document.getElementById(k + 'CenterXVal').textContent = document.getElementById(k + 'CenterX').value;
+            render();
+        });
+
+        // Центр Y
+        initSlider(k + 'CenterY', function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].centerY = parseFloat(document.getElementById(k + 'CenterY').value);
+            document.getElementById(k + 'CenterYVal').textContent = document.getElementById(k + 'CenterY').value;
+            render();
+        });
+
+        // Резкость
+        initSlider(k + 'Sharpness', function() {
+            if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+            _ensureVignetteObj(layers[activeLayerIndex], type);
+            layers[activeLayerIndex][k].sharpness = parseFloat(document.getElementById(k + 'Sharpness').value);
+            document.getElementById(k + 'SharpnessVal').textContent = document.getElementById(k + 'Sharpness').value;
+            render();
+        });
+
+        // Кривая затухания (select)
+        var falloffEl = document.getElementById(k + 'Falloff');
+        if (falloffEl) {
+            falloffEl.addEventListener('change', function() {
+                if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+                _ensureVignetteObj(layers[activeLayerIndex], type);
+                layers[activeLayerIndex][k].falloffCurve = falloffEl.value;
+                render();
+            });
+        }
     });
 
     // Кнопки выбора цветового диапазона
@@ -1327,25 +1368,60 @@ function resetDistortionEffects() {
 
 // ==================== ВИНЬЕТКИ ====================
 
+/**
+ * Гарантирует, что layer[key] является объектом (конвертирует старый числовой формат).
+ */
+function _ensureVignetteObj(layer, type) {
+    const k = 'vignette' + type;
+    const val = layer[k];
+    if (!val || typeof val === 'number') {
+        const intensity = typeof val === 'number' ? val : 0;
+        layer[k] = Object.assign({}, VIGNETTE_DEFAULTS[type], { intensity: intensity });
+    }
+}
+
 function resetAllVignettes() {
     if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
     const layer = layers[activeLayerIndex];
-    layer.vignetteDarken = 0;
-    layer.vignetteLighten = 0;
-    layer.vignetteTransparency = 0;
-    layer.vignetteSharpness = 50;
-    layer.vignetteShape = 'ellipse';
+    ['Darken', 'Lighten', 'Transparency'].forEach(function(type) {
+        layer['vignette' + type] = Object.assign({}, VIGNETTE_DEFAULTS[type]);
+    });
     updateControls();
     render();
     showHint('Виньетки сброшены');
 }
 
-function setVignetteShape(shape, btn) {
+function setVignetteTypeShape(type, shape, btn) {
     if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
-    layers[activeLayerIndex].vignetteShape = shape;
-    document.getElementById('vignetteShapeEllipse').classList.toggle('active', shape === 'ellipse');
-    document.getElementById('vignetteShapeCircle').classList.toggle('active', shape === 'circle');
+    const layer = layers[activeLayerIndex];
+    _ensureVignetteObj(layer, type);
+    layer['vignette' + type].shape = shape;
+    // Update button states
+    ['Circle', 'Ellipse', 'Rectangle'].forEach(function(s) {
+        const el = document.getElementById('vignette' + type + 'Shape' + s);
+        if (el) el.classList.toggle('active', s.toLowerCase() === shape);
+    });
     render();
+}
+
+function centerVignette(type) {
+    if (activeLayerIndex < 0 || !layers[activeLayerIndex]) return;
+    const layer = layers[activeLayerIndex];
+    _ensureVignetteObj(layer, type);
+    layer['vignette' + type].centerX = 50;
+    layer['vignette' + type].centerY = 50;
+    // Sync sliders
+    var k = 'vignette' + type;
+    var elX = document.getElementById(k + 'CenterX');
+    var elY = document.getElementById(k + 'CenterY');
+    if (elX) { elX.value = 50; document.getElementById(k + 'CenterXVal').textContent = 50; }
+    if (elY) { elY.value = 50; document.getElementById(k + 'CenterYVal').textContent = 50; }
+    render();
+}
+
+// Legacy: setVignetteShape is no longer used but kept for backward compatibility
+function setVignetteShape(shape, btn) {
+    setVignetteTypeShape('Darken', shape, btn);
 }
 
 // ==================== ЛАСТИК ====================

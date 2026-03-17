@@ -351,6 +351,7 @@
                 <div class="tab-content" id="tab-vignette">
                     <div class="upload-title">🌑 Виньетки слоя <span id="activeLayerNum7">1</span></div>
 
+                    <!-- 🌑 Затемнение -->
                     <div class="param-group">
                         <div class="param-label">
                             <span>🌑 Затемнение</span>
@@ -358,7 +359,51 @@
                         </div>
                         <input type="range" id="vignetteDarken" min="0" max="100" value="0" step="1">
                     </div>
+                    <details class="vignette-advanced">
+                        <summary>⚙️ Настройки затемнения</summary>
+                        <div class="param-group">
+                            <div class="param-label"><span>📏 Внутренний радиус</span><span class="param-value" id="vignetteDarkenInnerRadiusVal">0</span></div>
+                            <input type="range" id="vignetteDarkenInnerRadius" min="0" max="100" value="0" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>📐 Внешний радиус</span><span class="param-value" id="vignetteDarkenOuterRadiusVal">100</span></div>
+                            <input type="range" id="vignetteDarkenOuterRadius" min="50" max="150" value="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр X</span><span class="param-value" id="vignetteDarkenCenterXVal">50</span></div>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <input type="range" id="vignetteDarkenCenterX" min="-50" max="150" value="50" step="1" style="flex:1">
+                                <button class="preset-btn" style="padding:4px 8px" onclick="centerVignette('Darken')">🎯</button>
+                            </div>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр Y</span><span class="param-value" id="vignetteDarkenCenterYVal">50</span></div>
+                            <input type="range" id="vignetteDarkenCenterY" min="-50" max="150" value="50" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>💎 Резкость</span><span class="param-value" id="vignetteDarkenSharpnessVal">50</span></div>
+                            <input type="range" id="vignetteDarkenSharpness" min="0" max="100" value="50" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>📊 Кривая затухания</span></div>
+                            <select id="vignetteDarkenFalloff" class="vignette-select">
+                                <option value="linear">Линейная</option>
+                                <option value="quadratic" selected>Квадратичная</option>
+                                <option value="cubic">Кубическая</option>
+                                <option value="sine">Синусоидальная</option>
+                            </select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🔲 Форма</span></div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" id="vignetteDarkenShapeCircle" onclick="setVignetteTypeShape('Darken','circle',this)">⭕ Круг</button>
+                                <button class="preset-btn active" id="vignetteDarkenShapeEllipse" onclick="setVignetteTypeShape('Darken','ellipse',this)">⬭ Эллипс</button>
+                                <button class="preset-btn" id="vignetteDarkenShapeRectangle" onclick="setVignetteTypeShape('Darken','rectangle',this)">▭ Прямоуг.</button>
+                            </div>
+                        </div>
+                    </details>
 
+                    <!-- ☀️ Осветление -->
                     <div class="param-group">
                         <div class="param-label">
                             <span>☀️ Осветление</span>
@@ -366,7 +411,51 @@
                         </div>
                         <input type="range" id="vignetteLighten" min="0" max="100" value="0" step="1">
                     </div>
+                    <details class="vignette-advanced">
+                        <summary>⚙️ Настройки осветления</summary>
+                        <div class="param-group">
+                            <div class="param-label"><span>📏 Внутренний радиус</span><span class="param-value" id="vignetteLightenInnerRadiusVal">0</span></div>
+                            <input type="range" id="vignetteLightenInnerRadius" min="0" max="100" value="0" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>📐 Внешний радиус</span><span class="param-value" id="vignetteLightenOuterRadiusVal">100</span></div>
+                            <input type="range" id="vignetteLightenOuterRadius" min="50" max="150" value="100" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр X</span><span class="param-value" id="vignetteLightenCenterXVal">50</span></div>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <input type="range" id="vignetteLightenCenterX" min="-50" max="150" value="50" step="1" style="flex:1">
+                                <button class="preset-btn" style="padding:4px 8px" onclick="centerVignette('Lighten')">🎯</button>
+                            </div>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр Y</span><span class="param-value" id="vignetteLightenCenterYVal">50</span></div>
+                            <input type="range" id="vignetteLightenCenterY" min="-50" max="150" value="50" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>💎 Резкость</span><span class="param-value" id="vignetteLightenSharpnessVal">50</span></div>
+                            <input type="range" id="vignetteLightenSharpness" min="0" max="100" value="50" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>📊 Кривая затухания</span></div>
+                            <select id="vignetteLightenFalloff" class="vignette-select">
+                                <option value="linear">Линейная</option>
+                                <option value="quadratic" selected>Квадратичная</option>
+                                <option value="cubic">Кубическая</option>
+                                <option value="sine">Синусоидальная</option>
+                            </select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🔲 Форма</span></div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" id="vignetteLightenShapeCircle" onclick="setVignetteTypeShape('Lighten','circle',this)">⭕ Круг</button>
+                                <button class="preset-btn active" id="vignetteLightenShapeEllipse" onclick="setVignetteTypeShape('Lighten','ellipse',this)">⬭ Эллипс</button>
+                                <button class="preset-btn" id="vignetteLightenShapeRectangle" onclick="setVignetteTypeShape('Lighten','rectangle',this)">▭ Прямоуг.</button>
+                            </div>
+                        </div>
+                    </details>
 
+                    <!-- 💧 Прозрачность -->
                     <div class="param-group">
                         <div class="param-label">
                             <span>💧 Прозрачность</span>
@@ -374,26 +463,51 @@
                         </div>
                         <input type="range" id="vignetteTransparency" min="0" max="100" value="0" step="1">
                     </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>🎯 Резкость перехода</span>
-                            <span class="param-value" id="vignetteSharpnessVal">50</span>
+                    <details class="vignette-advanced">
+                        <summary>⚙️ Настройки прозрачности</summary>
+                        <div class="param-group">
+                            <div class="param-label"><span>📏 Внутренний радиус</span><span class="param-value" id="vignetteTransparencyInnerRadiusVal">30</span></div>
+                            <input type="range" id="vignetteTransparencyInnerRadius" min="0" max="100" value="30" step="1">
                         </div>
-                        <input type="range" id="vignetteSharpness" min="0" max="100" value="50" step="1">
-                    </div>
-
-                    <div class="param-group">
-                        <div class="param-label">
-                            <span>⭕ Форма</span>
+                        <div class="param-group">
+                            <div class="param-label"><span>📐 Внешний радиус</span><span class="param-value" id="vignetteTransparencyOuterRadiusVal">100</span></div>
+                            <input type="range" id="vignetteTransparencyOuterRadius" min="50" max="150" value="100" step="1">
                         </div>
-                        <div class="filter-presets">
-                            <button class="preset-btn active" id="vignetteShapeEllipse" onclick="setVignetteShape('ellipse', this)">Эллипс</button>
-                            <button class="preset-btn" id="vignetteShapeCircle" onclick="setVignetteShape('circle', this)">Круг</button>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр X</span><span class="param-value" id="vignetteTransparencyCenterXVal">50</span></div>
+                            <div style="display:flex;gap:6px;align-items:center">
+                                <input type="range" id="vignetteTransparencyCenterX" min="-50" max="150" value="50" step="1" style="flex:1">
+                                <button class="preset-btn" style="padding:4px 8px" onclick="centerVignette('Transparency')">🎯</button>
+                            </div>
                         </div>
-                    </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🎯 Центр Y</span><span class="param-value" id="vignetteTransparencyCenterYVal">50</span></div>
+                            <input type="range" id="vignetteTransparencyCenterY" min="-50" max="150" value="50" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>💎 Резкость</span><span class="param-value" id="vignetteTransparencySharpnessVal">70</span></div>
+                            <input type="range" id="vignetteTransparencySharpness" min="0" max="100" value="70" step="1">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>📊 Кривая затухания</span></div>
+                            <select id="vignetteTransparencyFalloff" class="vignette-select">
+                                <option value="linear">Линейная</option>
+                                <option value="quadratic">Квадратичная</option>
+                                <option value="cubic" selected>Кубическая</option>
+                                <option value="sine">Синусоидальная</option>
+                            </select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>🔲 Форма</span></div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" id="vignetteTransparencyShapeCircle" onclick="setVignetteTypeShape('Transparency','circle',this)">⭕ Круг</button>
+                                <button class="preset-btn active" id="vignetteTransparencyShapeEllipse" onclick="setVignetteTypeShape('Transparency','ellipse',this)">⬭ Эллипс</button>
+                                <button class="preset-btn" id="vignetteTransparencyShapeRectangle" onclick="setVignetteTypeShape('Transparency','rectangle',this)">▭ Прямоуг.</button>
+                            </div>
+                        </div>
+                    </details>
 
-                    <div class="param-group">
+                    <div class="param-group" style="margin-top:12px">
                         <button class="preset-btn" style="width:100%" onclick="resetAllVignettes()">↺ Сбросить все виньетки</button>
                     </div>
                 </div>

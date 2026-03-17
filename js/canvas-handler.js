@@ -261,39 +261,10 @@ function applyFiltersToImage(layer, imageOverride) {
     
     tempCtx.putImageData(imageData, 0, 0);
     
-    // Виньетка-прозрачность (делает края прозрачными)
-    if ((layer.vignetteTransparency || 0) > 0) {
-        const vt = layer.vignetteTransparency / 100;
-        const sharpness = getVignetteSharpness(layer);
-        const shape = layer.vignetteShape || 'ellipse';
-        const w = tempCanvas.width;
-        const h = tempCanvas.height;
-        const cx = w / 2;
-        const cy = h / 2;
-        const rx = shape === 'circle' ? Math.min(cx, cy) : cx;
-        const ry = shape === 'circle' ? Math.min(cx, cy) : cy;
-
-        let alphaData = tempCtx.getImageData(0, 0, w, h);
-        const aPixels = alphaData.data;
-        // innerRadius: fraction of outer radius where opaque center ends and falloff begins
-        const innerRadius = vignetteInnerStop(sharpness);
-
-        for (let py = 0; py < h; py++) {
-            for (let px = 0; px < w; px++) {
-                const nx = (px - cx) / rx;
-                const ny = (py - cy) / ry;
-                const dist = Math.sqrt(nx * nx + ny * ny); // 0 at center, 1 at ellipse edge
-                if (dist >= innerRadius) {
-                    // Avoid division by zero when innerRadius is exactly 1
-                    const range = 1 - innerRadius || 1e-4;
-                    const t = Math.min(1, (dist - innerRadius) / range);
-                    const alphaFactor = 1 - t * vt;
-                    const idx = (py * w + px) * 4;
-                    aPixels[idx + 3] = Math.max(0, Math.round(aPixels[idx + 3] * alphaFactor));
-                }
-            }
-        }
-        tempCtx.putImageData(alphaData, 0, 0);
+    // Виньетка-прозрачность (делает края прозрачными) — попиксельная обработка
+    const vtConfig = getVignetteConfig(layer, 'Transparency');
+    if (vtConfig.intensity > 0) {
+        applyTransparencyVignette(tempCtx, tempCanvas.width, tempCanvas.height, vtConfig);
     }
 
     return tempCanvas;
@@ -572,23 +543,186 @@ function applyCanvasBlendingToState(stateCanvas, layer) {
 const VIGNETTE_DEFAULT_SHARPNESS = 50;
 
 /**
- * Возвращает нормализованное (0-1) значение резкости виньетки для слоя.
- * @param {object} layer
- * @returns {number} 0..1
+ * Значения по умолчанию для каждого типа виньетки.
  */
-function getVignetteSharpness(layer) {
-    return (layer.vignetteSharpness !== undefined ? layer.vignetteSharpness : VIGNETTE_DEFAULT_SHARPNESS) / 100;
+const VIGNETTE_DEFAULTS = {
+    Darken:       { intensity: 0, innerRadius: 0,  outerRadius: 100, centerX: 50, centerY: 50, sharpness: 50, falloffCurve: 'quadratic', shape: 'ellipse' },
+    Lighten:      { intensity: 0, innerRadius: 0,  outerRadius: 100, centerX: 50, centerY: 50, sharpness: 50, falloffCurve: 'quadratic', shape: 'ellipse' },
+    Transparency: { intensity: 0, innerRadius: 30, outerRadius: 100, centerX: 50, centerY: 50, sharpness: 70, falloffCurve: 'cubic',     shape: 'ellipse' }
+};
+
+/**
+ * Возвращает объект конфига виньетки, поддерживая обратную совместимость
+ * (старый формат: число; новый: объект с полями).
+ * @param {object} layer
+ * @param {'Darken'|'Lighten'|'Transparency'} type
+ * @returns {object}
+ */
+function getVignetteConfig(layer, type) {
+    const key = `vignette${type}`;
+    const val = layer[key];
+    const defaults = VIGNETTE_DEFAULTS[type];
+    if (!val) return Object.assign({}, defaults);
+    if (typeof val === 'number') return Object.assign({}, defaults, { intensity: val });
+    return Object.assign({}, defaults, val);
 }
 
 /**
- * Вычисляет долю радиуса, где начинается переход виньетки.
- * При sharpness=0 (0.0) переход начинается с 50% радиуса.
- * При sharpness=1 (1.0) переход начинается с 90% радиуса (более резкий).
- * @param {number} sharpness - нормализованное значение 0..1
- * @returns {number} 0.5..0.9
+ * Вычисляет кривую затухания для нормированного значения t (0..1).
+ * @param {number} t
+ * @param {string} curve
+ * @returns {number}
  */
-function vignetteInnerStop(sharpness) {
-    return 0.5 + sharpness * 0.4;
+function applyFalloffCurve(t, curve) {
+    switch (curve) {
+        case 'linear':    return t;
+        case 'cubic':     return t * t * t;
+        case 'sine':      return Math.sin(t * Math.PI / 2);
+        case 'quadratic':
+        default:          return t * t;
+    }
+}
+
+/**
+ * Применяет виньетку-затемнение или виньетку-осветление (градиентная отрисовка).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} lx - left x of layer on canvas
+ * @param {number} ly - top y of layer on canvas
+ * @param {number} width
+ * @param {number} height
+ * @param {object} config - vignette config object
+ * @param {'Darken'|'Lighten'} type
+ */
+function applyGradientVignette(ctx, lx, ly, width, height, config, type) {
+    if (!config || config.intensity <= 0) return;
+
+    const strength = config.intensity / 100;
+    const shape = config.shape || 'ellipse';
+
+    const cx = lx + (config.centerX / 100) * width;
+    const cy = ly + (config.centerY / 100) * height;
+
+    const r = type === 'Darken' ? [0, 0, 0] : [255, 255, 255];
+
+    if (shape === 'rectangle') {
+        _applyRectVignette(ctx, lx, ly, width, height, cx, cy, config, r[0], r[1], r[2], strength);
+        return;
+    }
+
+    // circle or ellipse — radial gradient
+    let rx, ry;
+    if (shape === 'circle') {
+        rx = ry = Math.min(width, height) / 2;
+    } else {
+        rx = width / 2;
+        ry = height / 2;
+    }
+    const outerR = Math.sqrt(rx * rx + ry * ry) * (config.outerRadius / 100);
+    const innerR = outerR * (config.innerRadius / 100);
+
+    // Sharpness: 0 → transition from 20% to 100% of outer; 100 → from 90% to 100%
+    const sharpness = (config.sharpness || 50) / 100;
+    const innerStop = (0.2 + sharpness * 0.7) * (innerR > 0 ? innerR / outerR : 1);
+    const gradInner = Math.max(0, Math.min(outerR - 1, innerR));
+
+    const gradient = ctx.createRadialGradient(cx, cy, gradInner, cx, cy, outerR);
+    gradient.addColorStop(0, `rgba(${r[0]},${r[1]},${r[2]},0)`);
+    gradient.addColorStop(Math.min(innerStop, 0.99), `rgba(${r[0]},${r[1]},${r[2]},0)`);
+    gradient.addColorStop(1, `rgba(${r[0]},${r[1]},${r[2]},${strength})`);
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(lx, ly, width, height);
+}
+
+/**
+ * Прямоугольная виньетка — 4 линейных градиента от краёв.
+ */
+function _applyRectVignette(ctx, lx, ly, width, height, cx, cy, config, r, g, b, strength) {
+    const outerRF = config.outerRadius / 100;
+    const sharpness = (config.sharpness || 50) / 100;
+
+    // Border size relative to each half-dimension
+    const bw = Math.min(width  * outerRF * (1 - sharpness * 0.6), width  / 2);
+    const bh = Math.min(height * outerRF * (1 - sharpness * 0.6), height / 2);
+
+    ctx.save();
+    const c0 = `rgba(${r},${g},${b},${strength})`;
+    const cT = `rgba(${r},${g},${b},0)`;
+
+    // Top
+    const tg = ctx.createLinearGradient(0, ly, 0, ly + bh);
+    tg.addColorStop(0, c0); tg.addColorStop(1, cT);
+    ctx.fillStyle = tg; ctx.fillRect(lx, ly, width, bh);
+
+    // Bottom
+    const bg = ctx.createLinearGradient(0, ly + height - bh, 0, ly + height);
+    bg.addColorStop(0, cT); bg.addColorStop(1, c0);
+    ctx.fillStyle = bg; ctx.fillRect(lx, ly + height - bh, width, bh);
+
+    // Left
+    const lg = ctx.createLinearGradient(lx, 0, lx + bw, 0);
+    lg.addColorStop(0, c0); lg.addColorStop(1, cT);
+    ctx.fillStyle = lg; ctx.fillRect(lx, ly, bw, height);
+
+    // Right
+    const rg = ctx.createLinearGradient(lx + width - bw, 0, lx + width, 0);
+    rg.addColorStop(0, cT); rg.addColorStop(1, c0);
+    ctx.fillStyle = rg; ctx.fillRect(lx + width - bw, ly, bw, height);
+
+    ctx.restore();
+}
+
+/**
+ * Применяет виньетку-прозрачность попиксельно к контексту tempCtx.
+ * @param {CanvasRenderingContext2D} tempCtx
+ * @param {number} w
+ * @param {number} h
+ * @param {object} config
+ */
+function applyTransparencyVignette(tempCtx, w, h, config) {
+    const shape = config.shape || 'ellipse';
+    const cx = (config.centerX / 100) * w;
+    const cy = (config.centerY / 100) * h;
+    const strength = config.intensity / 100;
+    const sharpness = (config.sharpness || 50) / 100;
+
+    // outerRadius defines where effect reaches max (as fraction of half max-dimension)
+    const maxDim = Math.max(w, h) / 2;
+    const outerR = maxDim * (config.outerRadius / 100);
+    const innerR = outerR * (config.innerRadius / 100);
+    const range = Math.max(outerR - innerR, 1);
+
+    let alphaData = tempCtx.getImageData(0, 0, w, h);
+    const aPixels = alphaData.data;
+
+    for (let py = 0; py < h; py++) {
+        for (let px = 0; px < w; px++) {
+            let dist;
+            if (shape === 'circle') {
+                const r = Math.min(w, h) / 2;
+                dist = Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy)) / (r / maxDim);
+            } else if (shape === 'rectangle') {
+                // Chebyshev distance normalized to maxDim
+                const rx = w / 2, ry = h / 2;
+                dist = Math.max(Math.abs(px - cx) / (rx / maxDim), Math.abs(py - cy) / (ry / maxDim));
+            } else {
+                // ellipse
+                const rx = w / 2, ry = h / 2;
+                const nx = (px - cx) / rx;
+                const ny = (py - cy) / ry;
+                dist = Math.sqrt(nx * nx + ny * ny) * maxDim;
+            }
+
+            if (dist > innerR) {
+                const t = Math.min(1, (dist - innerR) / range);
+                const curved = applyFalloffCurve(t, config.falloffCurve);
+                const alphaFactor = 1 - curved * strength;
+                const idx = (py * w + px) * 4;
+                aPixels[idx + 3] = Math.max(0, Math.round(aPixels[idx + 3] * alphaFactor));
+            }
+        }
+    }
+    tempCtx.putImageData(alphaData, 0, 0);
 }
 
 function drawLayer(layer) {
@@ -625,50 +759,19 @@ function drawLayer(layer) {
     // Рисуем изображение с фильтрами
     ctx.drawImage(filteredImage, layer.x, layer.y, width, height);
     
-    // Виньетирование (обратная совместимость: layer.vignette → vignetteDarken)
-    const darkenVal = (layer.vignetteDarken || 0) || (layer.vignette || 0);
-    const lightenVal = layer.vignetteLighten || 0;
+    // Виньетирование (обратная совместимость: layer.vignette → vignetteDarken.intensity)
+    const darkenConfig  = getVignetteConfig(layer, 'Darken');
+    const lightenConfig = getVignetteConfig(layer, 'Lighten');
+    // Also support legacy layer.vignette
+    if ((layer.vignette || 0) > 0 && darkenConfig.intensity === 0) {
+        darkenConfig.intensity = layer.vignette;
+    }
 
-    if (darkenVal > 0 || lightenVal > 0) {
-        const sharpness = getVignetteSharpness(layer);
-        const shape = layer.vignetteShape || 'ellipse';
-        const centerX = layer.x + width / 2;
-        const centerY = layer.y + height / 2;
-        // innerStop: fraction of radius where the clear center ends
-        // scaled by VIGNETTE_GRADIENT_TAPER so the transition feels natural for radial gradients
-        const VIGNETTE_GRADIENT_TAPER = 0.8;
-        const innerStop = vignetteInnerStop(sharpness) * VIGNETTE_GRADIENT_TAPER;
-
-        let rx, ry;
-        if (shape === 'circle') {
-            const r = Math.min(width, height) / 2;
-            rx = r;
-            ry = r;
-        } else {
-            rx = width / 2;
-            ry = height / 2;
-        }
-        const radius = Math.sqrt(rx * rx + ry * ry);
-
-        if (darkenVal > 0) {
-            const vignetteStrength = darkenVal / 100;
-            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            gradient.addColorStop(0, 'rgba(0,0,0,0)');
-            gradient.addColorStop(innerStop, 'rgba(0,0,0,0)');
-            gradient.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
-            ctx.fillStyle = gradient;
-            ctx.fillRect(layer.x, layer.y, width, height);
-        }
-
-        if (lightenVal > 0) {
-            const vignetteStrength = lightenVal / 100;
-            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            gradient.addColorStop(0, 'rgba(255,255,255,0)');
-            gradient.addColorStop(innerStop, 'rgba(255,255,255,0)');
-            gradient.addColorStop(1, `rgba(255,255,255,${vignetteStrength})`);
-            ctx.fillStyle = gradient;
-            ctx.fillRect(layer.x, layer.y, width, height);
-        }
+    if (darkenConfig.intensity > 0) {
+        applyGradientVignette(ctx, layer.x, layer.y, width, height, darkenConfig, 'Darken');
+    }
+    if (lightenConfig.intensity > 0) {
+        applyGradientVignette(ctx, layer.x, layer.y, width, height, lightenConfig, 'Lighten');
     }
     
     ctx.restore();

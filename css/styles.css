@@ -1903,3 +1903,69 @@ input[type="range"]::-moz-range-thumb {
         box-shadow: 0 0 0 10px rgba(56, 239, 125, 0);
     }
 }
+
+/* ===== РАСШИРЕННЫЕ НАСТРОЙКИ ВИНЬЕТКИ ===== */
+
+.vignette-advanced {
+    margin-bottom: 8px;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.vignette-advanced > summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    background: #2a2a2a;
+    color: #aaa;
+    font-size: 0.8em;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vignette-advanced > summary::-webkit-details-marker {
+    display: none;
+}
+
+.vignette-advanced > summary::after {
+    content: '▶';
+    margin-left: auto;
+    font-size: 0.7em;
+    transition: transform 0.2s;
+}
+
+.vignette-advanced[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.vignette-advanced[open] > summary {
+    color: #ccc;
+    border-bottom: 1px solid #3a3a3a;
+}
+
+.vignette-advanced > .param-group {
+    margin: 8px 8px 0;
+}
+
+.vignette-advanced > .param-group:last-child {
+    margin-bottom: 8px;
+}
+
+.vignette-select {
+    width: 100%;
+    background: #2d2d2d;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.vignette-select:focus {
+    outline: none;
+    border-color: #0078d4;
+}
