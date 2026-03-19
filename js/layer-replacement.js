@@ -217,9 +217,11 @@ var layerReplacement = {
     caSourceMarkers: [],   // [{x, y}] в координатах ImageData исходного слоя
     caTargetMarkers: [],   // [{x, y}] в координатах ImageData целевого слоя
     caDrawingTarget: false, // true = рисуем синий (target), false = рисуем зелёный (source)
+    caIsDrawing: false,
 
     // Mask Transfer
     mtMaskMarkers: [],
+    mtIsDrawing: false,
 
     // Clone Stamp
     csSourcePoint: null,   // {x, y, layerIndex}
@@ -346,7 +348,6 @@ function lrDeactivateAll() {
    ============================================================ */
 
 var _caDrawingHandler = null;
-var _caUpHandler = null;
 
 function lrActivateCASource() {
     lrDeactivateAll();
@@ -367,8 +368,22 @@ function _lrStartCADrawing() {
     if (!mainCanvas) return;
     mainCanvas.style.cursor = 'crosshair';
 
-    function onMove(e) {
-        if (!e.buttons && !e._touch) return;
+    function handleStart(e) {
+        if (e.type === 'touchstart') {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        var pos = _lrGetCanvasPos(e);
+        var markers = layerReplacement.caDrawingTarget
+            ? layerReplacement.caTargetMarkers
+            : layerReplacement.caSourceMarkers;
+        markers.push(pos);
+        layerReplacement.caIsDrawing = true;
+        lrRedrawOverlay();
+    }
+    function handleMove(e) {
+        if (!layerReplacement.caIsDrawing) return;
+        e.preventDefault();
         var pos = _lrGetCanvasPos(e);
         var markers = layerReplacement.caDrawingTarget
             ? layerReplacement.caTargetMarkers
@@ -376,30 +391,37 @@ function _lrStartCADrawing() {
         markers.push(pos);
         lrRedrawOverlay();
     }
-    function onDown(e) {
-        var pos = _lrGetCanvasPos(e);
-        var markers = layerReplacement.caDrawingTarget
-            ? layerReplacement.caTargetMarkers
-            : layerReplacement.caSourceMarkers;
-        markers.push(pos);
-        lrRedrawOverlay();
-    }
-    function onUp() {
-        // Keep active for continuous drawing
+    function handleEnd() {
+        layerReplacement.caIsDrawing = false;
     }
 
-    mainCanvas.addEventListener('mousemove', onMove);
-    mainCanvas.addEventListener('mousedown', onDown);
-    _caDrawingHandler = onMove;
-    _caUpHandler = onDown;
+    mainCanvas.addEventListener('mousedown', handleStart);
+    mainCanvas.addEventListener('mousemove', handleMove);
+    mainCanvas.addEventListener('mouseup', handleEnd);
+
+    mainCanvas.addEventListener('touchstart', handleStart, { passive: false });
+    mainCanvas.addEventListener('touchmove', handleMove, { passive: false });
+    mainCanvas.addEventListener('touchend', handleEnd);
+    mainCanvas.addEventListener('touchcancel', handleEnd);
+
+    _caDrawingHandler = { handleStart: handleStart, handleMove: handleMove, handleEnd: handleEnd };
 }
 
 function lrDeactivateCA() {
     var mainCanvas = document.getElementById('canvas');
     if (!mainCanvas) return;
     mainCanvas.style.cursor = '';
-    if (_caDrawingHandler) { mainCanvas.removeEventListener('mousemove', _caDrawingHandler); _caDrawingHandler = null; }
-    if (_caUpHandler) { mainCanvas.removeEventListener('mousedown', _caUpHandler); _caUpHandler = null; }
+    layerReplacement.caIsDrawing = false;
+    if (_caDrawingHandler) {
+        mainCanvas.removeEventListener('mousedown', _caDrawingHandler.handleStart);
+        mainCanvas.removeEventListener('mousemove', _caDrawingHandler.handleMove);
+        mainCanvas.removeEventListener('mouseup', _caDrawingHandler.handleEnd);
+        mainCanvas.removeEventListener('touchstart', _caDrawingHandler.handleStart);
+        mainCanvas.removeEventListener('touchmove', _caDrawingHandler.handleMove);
+        mainCanvas.removeEventListener('touchend', _caDrawingHandler.handleEnd);
+        mainCanvas.removeEventListener('touchcancel', _caDrawingHandler.handleEnd);
+        _caDrawingHandler = null;
+    }
 }
 
 function _lrUpdateCAButtonStates() {
@@ -542,7 +564,6 @@ function _lrMarkersBB(markers, imgW, imgH) {
    ============================================================ */
 
 var _mtDrawingHandler = null;
-var _mtDownHandler = null;
 
 function lrActivateMaskDraw() {
     lrDeactivateAll();
@@ -550,28 +571,52 @@ function lrActivateMaskDraw() {
     if (!mainCanvas) return;
     mainCanvas.style.cursor = 'crosshair';
 
-    function onMove(e) {
-        if (!e.buttons) return;
+    function handleStart(e) {
+        if (e.type === 'touchstart') {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        layerReplacement.mtMaskMarkers.push(_lrGetCanvasPos(e));
+        layerReplacement.mtIsDrawing = true;
+        lrRedrawOverlay();
+    }
+    function handleMove(e) {
+        if (!layerReplacement.mtIsDrawing) return;
+        e.preventDefault();
         layerReplacement.mtMaskMarkers.push(_lrGetCanvasPos(e));
         lrRedrawOverlay();
     }
-    function onDown(e) {
-        layerReplacement.mtMaskMarkers.push(_lrGetCanvasPos(e));
-        lrRedrawOverlay();
+    function handleEnd() {
+        layerReplacement.mtIsDrawing = false;
     }
 
-    mainCanvas.addEventListener('mousemove', onMove);
-    mainCanvas.addEventListener('mousedown', onDown);
-    _mtDrawingHandler = onMove;
-    _mtDownHandler = onDown;
+    mainCanvas.addEventListener('mousedown', handleStart);
+    mainCanvas.addEventListener('mousemove', handleMove);
+    mainCanvas.addEventListener('mouseup', handleEnd);
+
+    mainCanvas.addEventListener('touchstart', handleStart, { passive: false });
+    mainCanvas.addEventListener('touchmove', handleMove, { passive: false });
+    mainCanvas.addEventListener('touchend', handleEnd);
+    mainCanvas.addEventListener('touchcancel', handleEnd);
+
+    _mtDrawingHandler = { handleStart: handleStart, handleMove: handleMove, handleEnd: handleEnd };
 }
 
 function lrDeactivateMT() {
     var mainCanvas = document.getElementById('canvas');
     if (!mainCanvas) return;
     mainCanvas.style.cursor = '';
-    if (_mtDrawingHandler) { mainCanvas.removeEventListener('mousemove', _mtDrawingHandler); _mtDrawingHandler = null; }
-    if (_mtDownHandler) { mainCanvas.removeEventListener('mousedown', _mtDownHandler); _mtDownHandler = null; }
+    layerReplacement.mtIsDrawing = false;
+    if (_mtDrawingHandler) {
+        mainCanvas.removeEventListener('mousedown', _mtDrawingHandler.handleStart);
+        mainCanvas.removeEventListener('mousemove', _mtDrawingHandler.handleMove);
+        mainCanvas.removeEventListener('mouseup', _mtDrawingHandler.handleEnd);
+        mainCanvas.removeEventListener('touchstart', _mtDrawingHandler.handleStart);
+        mainCanvas.removeEventListener('touchmove', _mtDrawingHandler.handleMove);
+        mainCanvas.removeEventListener('touchend', _mtDrawingHandler.handleEnd);
+        mainCanvas.removeEventListener('touchcancel', _mtDrawingHandler.handleEnd);
+        _mtDrawingHandler = null;
+    }
 }
 
 /**
@@ -707,6 +752,11 @@ function lrPreviewMask() {
 var _csMouseMoveHandler = null;
 var _csMouseDownHandler = null;
 var _csMouseUpHandler = null;
+var _csTouchStartHandler = null;
+var _csTouchMoveHandler = null;
+var _csTouchEndHandler = null;
+var _csLongPressTimer = null;
+var _csLongPressStarted = false;
 
 function lrActivateCloneStamp() {
     lrDeactivateAll();
@@ -750,12 +800,66 @@ function lrActivateCloneStamp() {
         layerReplacement.csPrevPos = null;
     }
 
+    function onTouchStart(e) {
+        e.preventDefault();
+        _csLongPressStarted = false;
+        var startPos = _lrGetCanvasPos(e);
+        _csLongPressTimer = setTimeout(function() {
+            _csLongPressStarted = true;
+            _csLongPressTimer = null;
+            var srcId = document.getElementById('csSrcLayer').value;
+            var srcIdx = lrLayerIndexById(srcId);
+            layerReplacement.csSourcePoint = { x: startPos.x, y: startPos.y, layerIndex: srcIdx };
+            layerReplacement.csAlignedOffset = null;
+            lrRedrawOverlay();
+            lrShowHint('📍 Точка источника установлена (долгое нажатие)');
+        }, 500);
+    }
+    function onTouchMove(e) {
+        if (_csLongPressTimer) {
+            clearTimeout(_csLongPressTimer);
+            _csLongPressTimer = null;
+        }
+        if (_csLongPressStarted) return;
+        if (!layerReplacement.csSourcePoint) return;
+        e.preventDefault();
+        if (!layerReplacement.csIsDrawing) {
+            layerReplacement.csIsDrawing = true;
+            var aligned = document.getElementById('csAligned').checked;
+            if (!aligned) {
+                layerReplacement.csPrevPos = null;
+                layerReplacement.csAlignedOffset = null;
+            }
+        }
+        var pos = _lrGetCanvasPos(e);
+        _csApplyStroke(pos);
+    }
+    function onTouchEnd(e) {
+        if (_csLongPressTimer) {
+            clearTimeout(_csLongPressTimer);
+            _csLongPressTimer = null;
+        }
+        if (_csLongPressStarted) {
+            _csLongPressStarted = false;
+            return;
+        }
+        layerReplacement.csIsDrawing = false;
+        layerReplacement.csPrevPos = null;
+    }
+
     mainCanvas.addEventListener('mousedown', onDown);
     mainCanvas.addEventListener('mousemove', onMove);
     mainCanvas.addEventListener('mouseup', onUp);
+    mainCanvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    mainCanvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    mainCanvas.addEventListener('touchend', onTouchEnd);
+    mainCanvas.addEventListener('touchcancel', onTouchEnd);
     _csMouseDownHandler = onDown;
     _csMouseMoveHandler = onMove;
     _csMouseUpHandler = onUp;
+    _csTouchStartHandler = onTouchStart;
+    _csTouchMoveHandler = onTouchMove;
+    _csTouchEndHandler = onTouchEnd;
 }
 
 function lrDeactivateCS() {
@@ -764,15 +868,24 @@ function lrDeactivateCS() {
     mainCanvas.style.cursor = '';
     layerReplacement.csIsActive = false;
     layerReplacement.csIsDrawing = false;
+    if (_csLongPressTimer) { clearTimeout(_csLongPressTimer); _csLongPressTimer = null; }
+    _csLongPressStarted = false;
     if (_csMouseDownHandler) { mainCanvas.removeEventListener('mousedown', _csMouseDownHandler); _csMouseDownHandler = null; }
     if (_csMouseMoveHandler) { mainCanvas.removeEventListener('mousemove', _csMouseMoveHandler); _csMouseMoveHandler = null; }
     if (_csMouseUpHandler) { mainCanvas.removeEventListener('mouseup', _csMouseUpHandler); _csMouseUpHandler = null; }
+    if (_csTouchStartHandler) { mainCanvas.removeEventListener('touchstart', _csTouchStartHandler); _csTouchStartHandler = null; }
+    if (_csTouchMoveHandler) { mainCanvas.removeEventListener('touchmove', _csTouchMoveHandler); _csTouchMoveHandler = null; }
+    if (_csTouchEndHandler) {
+        mainCanvas.removeEventListener('touchend', _csTouchEndHandler);
+        mainCanvas.removeEventListener('touchcancel', _csTouchEndHandler);
+        _csTouchEndHandler = null;
+    }
 }
 
 function lrSetSourcePointMode() {
     var mainCanvas = document.getElementById('canvas');
     if (!mainCanvas) return;
-    lrShowHint('Alt+Click на canvas для установки точки источника');
+    lrShowHint('Alt+Click (или долгое нажатие) на canvas для установки точки источника');
 }
 
 function lrResetCloneStamp() {
@@ -903,8 +1016,9 @@ function _csApplyStroke(pos) {
 function _lrGetCanvasPos(e) {
     var mainCanvas = document.getElementById('canvas');
     var rect = mainCanvas.getBoundingClientRect();
-    var clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-    var clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    var touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    var clientX = e.clientX !== undefined ? e.clientX : (touch ? touch.clientX : 0);
+    var clientY = e.clientY !== undefined ? e.clientY : (touch ? touch.clientY : 0);
     // Масштаб CSS → canvas
     var cssScaleX = mainCanvas.width / rect.width;
     var cssScaleY = mainCanvas.height / rect.height;
