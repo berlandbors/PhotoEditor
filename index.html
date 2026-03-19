@@ -97,6 +97,7 @@
                     <button class="tab-btn" onclick="switchTab('distortion', this)">🌀 Искажения</button>
                     <button class="tab-btn" onclick="switchTab('eraser', this)">🖌️ Ластик</button>
                     <button class="tab-btn" onclick="switchTab('marker', this)">🎨 Маркер</button>
+                    <button class="tab-btn" onclick="switchTab('layer-replace', this); lrOnTabActivate()">🔄 Замена слоёв</button>
                 </div>
 
                 <!-- ТАБ: Базовые настройки -->
@@ -1225,6 +1226,172 @@
                         4. Нажмите «Применить»
                     </div>
                 </div>
+
+                <!-- ТАБ: Замена между слоями -->
+                <div class="tab-content" id="tab-layer-replace">
+                    <div class="upload-title">🔄 Замена между слоями <span id="activeLayerNum10" style="display:none">1</span></div>
+
+                    <!-- Выбор режима -->
+                    <div class="param-group">
+                        <div class="param-label"><span>Режим работы</span></div>
+                        <select id="replaceMode" onchange="lrSwitchMode(this.value)" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.85rem;">
+                            <option value="content-aware">🎯 Умная замена</option>
+                            <option value="mask-transfer">🎭 Перенос маски</option>
+                            <option value="clone-stamp">🖌️ Штамп между слоями</option>
+                        </select>
+                    </div>
+
+                    <hr style="margin:16px 0;border:none;border-top:1px solid rgba(255,255,255,0.1);">
+
+                    <!-- Режим A: Content-Aware Replace -->
+                    <div id="contentAwareContainer">
+                        <div style="font-size:0.82rem;font-weight:700;color:#ccc;margin-bottom:10px;">🎯 Умная замена (Content-Aware)</div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-источник</span></div>
+                            <select id="caSourceLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-назначение</span></div>
+                            <select id="caTargetLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+
+                        <div class="btn-grid" style="margin-bottom:10px;">
+                            <button class="quick-btn primary" id="caBtnSource" onclick="lrActivateCASource()">🟢 Объект (источник)</button>
+                            <button class="quick-btn" id="caBtnTarget" onclick="lrActivateCATarget()">🔵 Область (назначение)</button>
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Растушёвка краёв</span><span id="caFeatherVal">20</span> px</div>
+                            <input type="range" id="caFeather" min="0" max="50" value="20" oninput="document.getElementById('caFeatherVal').textContent=this.value">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Прозрачность</span><span id="caOpacityVal">100</span>%</div>
+                            <input type="range" id="caOpacity" min="0" max="100" value="100" oninput="document.getElementById('caOpacityVal').textContent=this.value">
+                        </div>
+                        <div class="param-group" style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="caAutoScale" checked style="cursor:pointer;">
+                            <label for="caAutoScale" style="font-size:0.82rem;color:#ccc;cursor:pointer;">Автоматическое масштабирование</label>
+                        </div>
+
+                        <div class="btn-grid">
+                            <button class="quick-btn primary" onclick="lrApplyContentAware()">✨ Применить замену</button>
+                            <button class="quick-btn" onclick="lrClearCAMarkers()">🗑️ Очистить маркеры</button>
+                        </div>
+                    </div>
+
+                    <!-- Режим B: Mask Transfer -->
+                    <div id="maskTransferContainer" style="display:none;">
+                        <div style="font-size:0.82rem;font-weight:700;color:#ccc;margin-bottom:10px;">🎭 Перенос маски (Mask Transfer)</div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-источник маски</span></div>
+                            <select id="mtSourceLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-назначение</span></div>
+                            <select id="mtTargetLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+
+                        <button class="quick-btn primary" style="width:100%;margin-bottom:10px;" onclick="lrActivateMaskDraw()">🟡 Создать маску на источнике</button>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Режим переноса</span></div>
+                            <div style="display:flex;flex-direction:column;gap:5px;padding:4px 0;">
+                                <label style="font-size:0.82rem;color:#ccc;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="mtMode" value="replace" checked> ⚪ Заменить выделенное
+                                </label>
+                                <label style="font-size:0.82rem;color:#ccc;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="mtMode" value="invert"> ⚪ Заменить невыделенное
+                                </label>
+                                <label style="font-size:0.82rem;color:#ccc;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="mtMode" value="blend"> ⚪ Смешать
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Растушёвка маски</span><span id="mtFeatherVal">20</span> px</div>
+                            <input type="range" id="mtFeather" min="0" max="100" value="20" oninput="document.getElementById('mtFeatherVal').textContent=this.value">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Порог маски</span><span id="mtThresholdVal">50</span>%</div>
+                            <input type="range" id="mtThreshold" min="0" max="100" value="50" oninput="document.getElementById('mtThresholdVal').textContent=this.value">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Сила эффекта</span><span id="mtStrengthVal">100</span>%</div>
+                            <input type="range" id="mtStrength" min="0" max="100" value="100" oninput="document.getElementById('mtStrengthVal').textContent=this.value">
+                        </div>
+                        <div class="param-group" style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="mtKeepAlpha" style="cursor:pointer;">
+                            <label for="mtKeepAlpha" style="font-size:0.82rem;color:#ccc;cursor:pointer;">Сохранить оригинальную прозрачность</label>
+                        </div>
+
+                        <div class="btn-grid">
+                            <button class="quick-btn primary" onclick="lrApplyMaskTransfer()">🔄 Применить перенос</button>
+                            <button class="quick-btn" onclick="lrPreviewMask()">👁️ Предпросмотр</button>
+                        </div>
+                    </div>
+
+                    <!-- Режим C: Clone Stamp -->
+                    <div id="cloneStampContainer" style="display:none;">
+                        <div style="font-size:0.82rem;font-weight:700;color:#ccc;margin-bottom:10px;">🖌️ Штамп между слоями (Clone Stamp)</div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-источник</span></div>
+                            <select id="csSrcLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Слой-назначение</span></div>
+                            <select id="csTgtLayer" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;"></select>
+                        </div>
+
+                        <button class="quick-btn" style="width:100%;margin-bottom:10px;" onclick="lrSetSourcePointMode()">📍 Установить точку источника (Alt+Click)</button>
+
+                        <div class="param-group" style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="csAligned" checked style="cursor:pointer;">
+                            <label for="csAligned" style="font-size:0.82rem;color:#ccc;cursor:pointer;">Выровнять источник (aligned)</label>
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Размер кисти</span><span id="csBrushSizeVal">20</span> px</div>
+                            <input type="range" id="csBrushSize" min="5" max="200" value="20" oninput="document.getElementById('csBrushSizeVal').textContent=this.value">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Жёсткость</span><span id="csBrushHardnessVal">50</span>%</div>
+                            <input type="range" id="csBrushHardness" min="0" max="100" value="50" oninput="document.getElementById('csBrushHardnessVal').textContent=this.value">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label"><span>Прозрачность</span><span id="csBrushOpacityVal">100</span>%</div>
+                            <input type="range" id="csBrushOpacity" min="10" max="100" value="100" oninput="document.getElementById('csBrushOpacityVal').textContent=this.value">
+                        </div>
+
+                        <div class="param-group">
+                            <div class="param-label"><span>Режим наложения</span></div>
+                            <select id="csBlendMode" style="width:100%;padding:6px 8px;background:#2d2d2d;color:#ccc;border:1px solid #444;border-radius:6px;font-size:0.82rem;">
+                                <option value="normal">Обычный</option>
+                                <option value="multiply">Умножение</option>
+                                <option value="screen">Экран</option>
+                                <option value="overlay">Наложение</option>
+                            </select>
+                        </div>
+
+                        <div class="btn-grid">
+                            <button class="quick-btn primary" onclick="lrActivateCloneStamp()">✓ Активировать штамп</button>
+                            <button class="quick-btn" onclick="lrResetCloneStamp()">↺ Сбросить</button>
+                        </div>
+                    </div>
+
+                    <!-- Советы -->
+                    <div style="margin-top:14px;font-size:0.78rem;color:rgba(255,255,255,0.6);line-height:1.6;">
+                        <strong>💡 Советы:</strong><br>
+                        • Используйте растушёвку для естественных границ<br>
+                        • Работайте на копиях слоёв для безопасности<br>
+                        • Clone Stamp: Alt+Click для установки источника<br>
+                        • Ctrl+L — открыть этот таб; 1/2/3 — режим
+                    </div>
+                </div>
+
         </aside>
 
         <button class="toggle-sidebar" onclick="toggleSidebar()">
@@ -1414,6 +1581,7 @@
 
     <script src="js/eraser-tool.js"></script>
     <script src="js/marker-tool.js"></script>
+    <script src="js/layer-replacement.js"></script>
     <script src="js/distortion-effects.js"></script>
     <script src="js/pixelation-effects.js"></script>
     <script src="js/background-removal.js"></script>
