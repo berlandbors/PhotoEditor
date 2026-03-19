@@ -533,6 +533,9 @@ function initUIControls() {
 
     // Инициализация вкладки ластика
     initEraserTab();
+
+    // Инициализация вкладки маркера
+    initMarkerControls();
 }
 
 // Инициализация слайдеров Channel Mixer
