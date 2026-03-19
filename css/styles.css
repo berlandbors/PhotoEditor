@@ -1969,3 +1969,51 @@ input[type="range"]::-moz-range-thumb {
     outline: none;
     border-color: #0078d4;
 }
+
+/* ==================== Маркер ==================== */
+
+/* Кнопка деактивации маркера */
+#toggleMarker.danger {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border-color: transparent;
+    color: #fff;
+}
+
+/* Сетка кнопок выбора типа маркера */
+.marker-type-btns {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+/* Кнопка «Передний план» — зелёная в активном состоянии */
+.marker-fg-btn.active {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+    border-color: transparent;
+    color: #fff;
+}
+
+.marker-fg-btn:hover:not(.active) {
+    border-color: #27ae60;
+    color: #4cd64c;
+}
+
+/* Кнопка «Фон» — красная в активном состоянии */
+.marker-bg-btn.active {
+    background: linear-gradient(135deg, #c0392b, #96281b);
+    border-color: transparent;
+    color: #fff;
+}
+
+.marker-bg-btn:hover:not(.active) {
+    border-color: #c0392b;
+    color: #e05050;
+}
+
+/* Сетка кнопок действий (Применить / Очистить) */
+.btn-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}

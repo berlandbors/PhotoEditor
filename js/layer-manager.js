@@ -441,7 +441,7 @@ function updateControls() {
 
     // Обновить номер активного слоя в табах
     const layerDisplayNum = activeLayerIndex + 1;
-    ['activeLayerNum', 'activeLayerNum2', 'activeLayerNum3', 'activeLayerNum4', 'activeLayerNum5', 'activeLayerNum6', 'activeLayerNum7', 'activeLayerNum8', 'bottomLayerNum'].forEach(id => {
+    ['activeLayerNum', 'activeLayerNum2', 'activeLayerNum3', 'activeLayerNum4', 'activeLayerNum5', 'activeLayerNum6', 'activeLayerNum7', 'activeLayerNum8', 'activeLayerNum9', 'bottomLayerNum'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = layerDisplayNum;
     });
