@@ -118,7 +118,7 @@ function lrGaussianBlurAlpha(imageData, radius) {
         kernel.push(val);
         sum += val;
     }
-    for (var i = 0; i < size; i++) kernel[i] /= sum;
+    for (var j = 0; j < size; j++) kernel[j] /= sum;
 
     var tmp = new Float32Array(w * h);
     // Горизонтальный проход
@@ -176,10 +176,12 @@ function lrGetBoundingBox(imageData) {
     var data = imageData.data;
     var W = imageData.width;
     var H = imageData.height;
+    // Pixels with alpha > ALPHA_THRESHOLD are considered part of the object
+    var ALPHA_THRESHOLD = 10;
     var minX = W, minY = H, maxX = -1, maxY = -1;
     for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
-            if (data[(y * W + x) * 4 + 3] > 10) {
+            if (data[(y * W + x) * 4 + 3] > ALPHA_THRESHOLD) {
                 if (x < minX) minX = x;
                 if (x > maxX) maxX = x;
                 if (y < minY) minY = y;
@@ -610,7 +612,13 @@ function lrApplyMaskTransfer() {
     var mainCanvas = document.getElementById('canvas');
     var scaleX = W / mainCanvas.width;
     var scaleY = H / mainCanvas.height;
-    var brushR = Math.max(20, parseInt(document.getElementById('mtFeather').value, 10) * 2 + 10);
+    // MIN_BRUSH_RADIUS: minimum brush size regardless of feather setting
+    // FEATHER_MULTIPLIER: scales feather slider value to brush radius
+    // BRUSH_BASE_SIZE: constant added to brush radius
+    var MIN_BRUSH_RADIUS = 20;
+    var FEATHER_MULTIPLIER = 2;
+    var BRUSH_BASE_SIZE = 10;
+    var brushR = Math.max(MIN_BRUSH_RADIUS, parseInt(document.getElementById('mtFeather').value, 10) * FEATHER_MULTIPLIER + BRUSH_BASE_SIZE);
 
     maskCtx.fillStyle = 'white';
     for (var i = 0; i < layerReplacement.mtMaskMarkers.length; i++) {
@@ -623,9 +631,11 @@ function lrApplyMaskTransfer() {
 
     var maskImgData = maskCtx.getImageData(0, 0, W, H);
 
-    // Feathering к маске
+    // MASK_FEATHER_MULTIPLIER: feather radius is tripled so the blur covers the
+    // full transition zone between masked and unmasked regions.
+    var MASK_FEATHER_MULTIPLIER = 3;
     if (feather > 0) {
-        lrGaussianBlurAlpha(maskImgData, feather * 3);
+        lrGaussianBlurAlpha(maskImgData, feather * MASK_FEATHER_MULTIPLIER);
         // Переносим красный канал (белое=255 серый) к альфа-каналу:
         var md = maskImgData.data;
         for (var p = 0; p < W * H; p++) {
