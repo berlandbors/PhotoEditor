@@ -12,6 +12,12 @@
 
 'use strict';
 
+// Количество пикселей, обрабатываемых за один асинхронный шаг
+var CHUNK_SIZE = 50000;
+
+// Максимальное евклидово расстояние в RGB-пространстве: sqrt(255² + 255² + 255²)
+var MAX_RGB_DISTANCE_SQ = 195075; // 255² + 255² + 255²
+
 var markerState = {
     active: false,          // Активен ли инструмент
     isDrawing: false,       // Идёт ли сейчас рисование маркером
@@ -280,6 +286,12 @@ function applyMarkerBackgroundRemoval() {
         return;
     }
 
+    // Предупреждение для очень больших изображений (>4 мегапикселей)
+    if (imgW * imgH > 4000000) {
+        var proceed = confirm('Обработка может занять 10-20 секунд. Продолжить?');
+        if (!proceed) return;
+    }
+
     var tempCanvas = document.createElement('canvas');
     var tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = imgW;
@@ -340,34 +352,121 @@ function applyMarkerBackgroundRemoval() {
     fgSamples = _downsampleArray(fgSamples, 2000);
     bgSamples = _downsampleArray(bgSamples, 2000);
 
-    // Применить алгоритм удаления фона
-    var resultData = _computeAlphaMask(imageData, fgSamples, bgSamples, imgW, imgH);
+    showHint('⏳ Начало обработки...');
 
-    // Применить растушёвку краёв
-    var feather = markerState.featherRadius;
-    if (feather > 0) {
-        _blurAlphaChannel(resultData.data, imgW, imgH, feather);
+    // Применить алгоритм удаления фона асинхронно
+    _computeAlphaMaskAsync(imageData, fgSamples, bgSamples, imgW, imgH, function(resultData) {
+        // Применить растушёвку краёв
+        var feather = markerState.featherRadius;
+        if (feather > 0) {
+            _blurAlphaChannel(resultData.data, imgW, imgH, feather);
+        }
+
+        tempCtx.putImageData(resultData, 0, 0);
+
+        // Применить результат к слою
+        var dataURL = tempCanvas.toDataURL('image/png');
+        var newImg = new Image();
+        newImg.onload = function() {
+            layer.image = newImg;
+            render();
+            showHint('✅ Фон удалён! Обработано ' + (resultData.data.length / 4).toLocaleString() + ' пикселей');
+        };
+        newImg.src = dataURL;
+
+        // Очистить маркеры после применения
+        clearMarkers();
+    });
+}
+
+/**
+ * Асинхронно вычислить альфа-маску, разбивая обработку на chunks по CHUNK_SIZE пикселей.
+ * Это предотвращает блокировку главного потока браузера.
+ * По окончании вызывает callback(resultData).
+ *
+ * Используется взвешенный KNN-подход: для каждого пикселя находим
+ * минимальное расстояние до ближайшего FG и BG образца.
+ * Alpha = fg_weight / (fg_weight + bg_weight)
+ * где weight = 1 / (distance^2 + epsilon)
+ */
+function _computeAlphaMaskAsync(imageData, fgSamples, bgSamples, width, height, callback) {
+    var result = new ImageData(
+        new Uint8ClampedArray(imageData.data),
+        width, height
+    );
+    var data = result.data;
+    var threshold = markerState.threshold / 100; // 0.0–1.0
+    var epsilon = 1.0; // Избежать деления на ноль
+    var totalPixels = width * height;
+
+    // Кэш для уникальных цветов: ключ = упакованный RGB-цвет, значение = alpha
+    var cache = new Map();
+
+    function processChunk(startPixel) {
+        var endPixel = Math.min(startPixel + CHUNK_SIZE, totalPixels);
+
+        for (var p = startPixel; p < endPixel; p++) {
+            var i = p * 4;
+            if (data[i + 3] === 0) continue; // Уже прозрачный
+
+            var r = data[i];
+            var g = data[i + 1];
+            var b = data[i + 2];
+
+            // Упаковать RGB в число для кэша
+            var key = (r << 16) | (g << 8) | b;
+            var cached = cache.get(key);
+            if (cached !== undefined) {
+                data[i + 3] = Math.min(data[i + 3], cached);
+                continue;
+            }
+
+            // Найти минимальное расстояние до ближайшего FG и BG образца
+            var minFgDistSq = _minColorDistanceSq(r, g, b, fgSamples);
+            var minBgDistSq = _minColorDistanceSq(r, g, b, bgSamples);
+
+            // Вес: чем ближе к образцу, тем больше вес
+            var fgWeight = 1.0 / (minFgDistSq + epsilon);
+            var bgWeight = 1.0 / (minBgDistSq + epsilon);
+
+            var totalWeight = fgWeight + bgWeight;
+            var fgRatio = fgWeight / totalWeight; // 0.0 = точно BG, 1.0 = точно FG
+
+            // Применить порог для чёткости границ
+            var alpha;
+            if (fgRatio > 0.5 + threshold * 0.4) {
+                alpha = 255; // Чётко FG — полностью сохранить
+            } else if (fgRatio < 0.5 - threshold * 0.4) {
+                alpha = 0;   // Чётко BG — полностью удалить
+            } else {
+                // Переходная зона — плавное затухание
+                var t = (fgRatio - (0.5 - threshold * 0.4)) / (threshold * 0.8);
+                t = Math.max(0, Math.min(1, t));
+                // Сглаживание (smoothstep)
+                t = t * t * (3 - 2 * t);
+                alpha = Math.round(255 * t);
+            }
+
+            cache.set(key, alpha);
+            data[i + 3] = Math.min(data[i + 3], alpha);
+        }
+
+        var progress = Math.round((endPixel / totalPixels) * 100);
+        showHint('⏳ Обработка... ' + progress + '%');
+
+        if (endPixel < totalPixels) {
+            setTimeout(function() { processChunk(endPixel); }, 0);
+        } else {
+            callback(result);
+        }
     }
 
-    tempCtx.putImageData(resultData, 0, 0);
-
-    // Применить результат к слою
-    var dataURL = tempCanvas.toDataURL('image/png');
-    var newImg = new Image();
-    newImg.onload = function() {
-        layer.image = newImg;
-        render();
-        showHint('Фон удалён! Используйте Ctrl+Z для отмены');
-    };
-    newImg.src = dataURL;
-
-    // Очистить маркеры после применения
-    clearMarkers();
+    processChunk(0);
 }
 
 /**
  * Вычислить альфа-маску для каждого пикселя изображения на основе
- * цветового сходства с образцами FG и BG.
+ * цветового сходства с образцами FG и BG (синхронная версия, оставлена для совместимости).
  *
  * Используется взвешенный KNN-подход: для каждого пикселя находим
  * минимальное расстояние до ближайшего FG и BG образца.
@@ -392,13 +491,13 @@ function _computeAlphaMask(imageData, fgSamples, bgSamples, width, height) {
         var b = data[i + 2];
 
         // Найти минимальное расстояние до ближайшего FG образца
-        var minFgDist = _minColorDistance(r, g, b, fgSamples);
+        var minFgDistSq = _minColorDistanceSq(r, g, b, fgSamples);
         // Найти минимальное расстояние до ближайшего BG образца
-        var minBgDist = _minColorDistance(r, g, b, bgSamples);
+        var minBgDistSq = _minColorDistanceSq(r, g, b, bgSamples);
 
         // Вес: чем ближе к образцу, тем больше вес
-        var fgWeight = 1.0 / (minFgDist * minFgDist + epsilon);
-        var bgWeight = 1.0 / (minBgDist * minBgDist + epsilon);
+        var fgWeight = 1.0 / (minFgDistSq + epsilon);
+        var bgWeight = 1.0 / (minBgDistSq + epsilon);
 
         var totalWeight = fgWeight + bgWeight;
         var fgRatio = fgWeight / totalWeight; // 0.0 = точно BG, 1.0 = точно FG
@@ -425,19 +524,22 @@ function _computeAlphaMask(imageData, fgSamples, bgSamples, width, height) {
 }
 
 /**
- * Найти минимальное евклидово расстояние от цвета (r,g,b) до массива образцов
+ * Найти минимальное квадратичное евклидово расстояние от цвета (r,g,b) до массива образцов.
+ * Возвращает квадрат расстояния (без sqrt) для использования в весовой формуле.
+ * Ранний выход при идеальном совпадении (distSq === 0).
  */
-function _minColorDistance(r, g, b, samples) {
-    var minDist = Infinity;
+function _minColorDistanceSq(r, g, b, samples) {
+    var minDistSq = Infinity;
     for (var j = 0; j < samples.length; j++) {
         var s = samples[j];
         var dr = r - s[0];
         var dg = g - s[1];
         var db = b - s[2];
-        var dist = Math.sqrt(dr * dr + dg * dg + db * db);
-        if (dist < minDist) minDist = dist;
+        var distSq = dr * dr + dg * dg + db * db;
+        if (distSq === 0) return 0; // Идеальное совпадение — ранний выход
+        if (distSq < minDistSq) minDistSq = distSq;
     }
-    return minDist === Infinity ? 441.67 : minDist;
+    return minDistSq === Infinity ? MAX_RGB_DISTANCE_SQ : minDistSq;
 }
 
 /**
